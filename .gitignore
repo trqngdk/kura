@@ -1,0 +1,21 @@
+# ==========================================
+# KURA.ST // GITIGNORE
+# ==========================================
+
+# Rust compilation artifacts
+target/
+
+# Environment variables (CRITICAL: Contains R2 Secret Keys)
+.env
+
+# Local SQLite database & WAL journal files
+kura.db
+kura.db-shm
+kura.db-wal
+
+# Volatile storage / RAM disk mount point
+tmp/
+
+# OS generated files
+.DS_Store
+Thumbs.db

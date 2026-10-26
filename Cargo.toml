@@ -1,0 +1,18 @@
+[package]
+name = "kura"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.8.9", features = ["multipart"] }
+tokio = { version = "1.54.1", features = ["full"] }
+tower-http = { version = "0.7.1", features = ["limit", "set-header"] }
+opendal = { version = "0.59.5", features = ["services-s3"] }
+sqlx = { version = "0.9.0", features = ["sqlite", "runtime-tokio"] }
+infer = "0.22.0"
+rand = "0.10.3"
+sha2 = "0.11.1"
+dotenvy = "0.15.7"
+tokio-stream = "0.1.19"
+futures-core = "0.3.34"
+futures-util = "0.3.34"

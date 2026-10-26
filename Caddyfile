@@ -1,0 +1,22 @@
+# kura.st - Edge Proxy Configuration
+
+kura.st {
+    # Enforce strict security policies at the edge
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Content-Security-Policy "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline';"
+        Referrer-Policy "no-referrer"
+        
+        # Mask server identity
+        Server "kura-edge"
+        -X-Powered-By
+    }
+
+    # Enable modern compression
+    encode zstd gzip
+
+    # Route traffic to the Rust backend
+    reverse_proxy 127.0.0.1:3000
+}

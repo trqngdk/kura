@@ -1,0 +1,3855 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>kura — 蔵</title>
+  <style>
+    :root[data-theme="dark"] {
+      --bg: #080808;
+      --surface: #0d0d0d;
+      --surface-elevated: #121212;
+      --surface-hover: #161616;
+      --border: #222222;
+      --border-strong: #383838;
+      --text-primary: #efefef;
+      --text-secondary: #8a8a8a;
+      --text-muted: #525252;
+      --accent: #ffffff;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --radial-dot: #1a1a1a;
+    }
+
+    :root[data-theme="light"] {
+      --bg: #f4f4f5;
+      --surface: #ffffff;
+      --surface-elevated: #fafafa;
+      --surface-hover: #f1f1f3;
+      --border: #e4e4e7;
+      --border-strong: #d1d5db;
+      --text-primary: #18181b;
+      --text-secondary: #71717a;
+      --text-muted: #a1a1aa;
+      --accent: #09090b;
+      --success: #059669;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --radial-dot: #e2e8f0;
+    }
+
+    ::view-transition-old(root) {
+      animation: zoomOutFade 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    ::view-transition-new(root) {
+      animation: zoomInFade 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    @keyframes zoomOutFade {
+      0% { opacity: 1; transform: scale(1); filter: brightness(1); }
+      100% { opacity: 0; transform: scale(0.97); filter: brightness(0.85); }
+    }
+
+    @keyframes zoomInFade {
+      0% { opacity: 0; transform: scale(1.03); filter: brightness(0.85); }
+      100% { opacity: 1; transform: scale(1); filter: brightness(1); }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body,
+    .console-frame,
+    .vault-sidebar,
+    .page-footer,
+    .topbar,
+    .vault-topbar,
+    .control-bar,
+    .tab-btn,
+    .toggle-btn,
+    .ctrl-select,
+    .ctrl-input,
+    .btn-action,
+    .btn-ghost,
+    .top-btn,
+    .specs-grid,
+    .spec-cell,
+    .footer-telemetry,
+    .dropzone,
+    .paste-studio,
+    .paste-textarea,
+    .cli-box,
+    .batch-hud,
+    .album-banner,
+    .modal-window,
+    .modal-header,
+    .cmd-item {
+      transition: background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                  border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                  color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                  box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    body {
+      background-color: var(--bg);
+      background-image: radial-gradient(var(--radial-dot) 1px, transparent 1px);
+      background-size: 24px 24px;
+      color: var(--text-primary);
+      font-family: "JetBrains Mono", "SF Mono", "Geist Mono", Consolas, monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.75rem 1.25rem 1.25rem;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+      gap: 1.25rem;
+    }
+
+    ::selection {
+      background: var(--text-primary);
+      color: var(--bg);
+    }
+
+    .app-shell {
+      width: 100%;
+      max-width: 1040px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 1rem;
+      align-items: stretch;
+      margin: auto 0;
+      position: relative;
+      z-index: 2;
+      contain: layout style;
+    }
+
+    .console-frame {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.08);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .console-frame.paste-flash,
+    .console-frame.global-dragover {
+      border-color: var(--text-primary);
+      box-shadow: 0 0 0 1px var(--text-primary), 0 24px 56px rgba(0, 0, 0, 0.22);
+    }
+
+    .global-drop-banner {
+      display: none;
+      position: fixed;
+      top: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--text-primary);
+      color: var(--bg);
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.35rem 0.85rem;
+      z-index: 1200;
+      pointer-events: none;
+    }
+
+    body.dragging-file .global-drop-banner {
+      display: block;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1.1rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-elevated);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      display: inline-block;
+    }
+
+    .brand-name {
+      font-size: 0.92rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-kanji {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .topbar-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .top-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 0.65rem;
+      padding: 0.2rem 0.48rem;
+      cursor: pointer;
+    }
+
+    .top-btn:hover {
+      color: var(--text-primary);
+      border-color: var(--border-strong);
+    }
+
+    .top-btn.panic-btn:hover {
+      background: var(--danger);
+      color: #fff;
+      border-color: var(--danger);
+    }
+
+    .control-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: stretch;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 0.74rem;
+      flex-wrap: wrap;
+    }
+
+    .mode-tabs {
+      display: flex;
+    }
+
+    .tab-btn {
+      background: transparent;
+      color: var(--text-secondary);
+      border: none;
+      border-right: 1px solid var(--border);
+      padding: 0.55rem 0.9rem;
+      font-family: inherit;
+      font-size: 0.73rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+      background: var(--surface-hover);
+    }
+
+    .tab-btn.active {
+      color: var(--surface);
+      background: var(--text-primary);
+    }
+
+    .opsec-toggles {
+      display: flex;
+      align-items: center;
+      padding: 0.35rem 0.65rem;
+      gap: 0.3rem;
+      flex-wrap: wrap;
+    }
+
+    .ctrl-select,
+    .ctrl-input {
+      background: var(--bg);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      font-family: inherit;
+      font-size: 0.63rem;
+      padding: 0.22rem 0.4rem;
+      outline: none;
+    }
+
+    .ctrl-select:focus,
+    .ctrl-input:focus {
+      border-color: var(--border-strong);
+    }
+
+    .ctrl-input {
+      width: 78px;
+    }
+
+    .ctrl-input.duress-field {
+      display: none;
+      width: 74px;
+      border-color: rgba(239, 68, 68, 0.45);
+    }
+
+    .ctrl-input.duress-field.visible {
+      display: inline-block;
+    }
+
+    .ctrl-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .toggle-btn {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 0.63rem;
+      padding: 0.22rem 0.44rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.28rem;
+    }
+
+    .toggle-btn.active {
+      border-color: var(--border-strong);
+      color: var(--text-primary);
+    }
+
+    .toggle-indicator {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    .toggle-btn.active .toggle-indicator {
+      background: var(--success);
+    }
+
+    .view-pane {
+      display: none;
+      flex: 1;
+    }
+
+    .view-pane.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .dropzone {
+      flex: 1;
+      min-height: 240px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 2.75rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .dropzone:hover,
+    .dropzone.dragover {
+      background-color: var(--surface-hover);
+    }
+
+    .dropzone-icon {
+      width: 20px;
+      height: 20px;
+      margin: 0 auto 0.75rem;
+      stroke: var(--text-secondary);
+      transition: transform 0.2s ease, stroke 0.2s ease;
+    }
+
+    .dropzone:hover .dropzone-icon {
+      stroke: var(--text-primary);
+      transform: translateY(-2px);
+    }
+
+    .dropzone-title {
+      font-size: 0.86rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 0.35rem;
+    }
+
+    .dropzone-hint {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+    }
+
+    .kbd {
+      border: 1px solid var(--border-strong);
+      background: var(--bg);
+      padding: 0.04rem 0.3rem;
+      font-size: 0.62rem;
+      color: var(--text-secondary);
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .paste-studio {
+      flex: 1;
+      padding: 0.9rem 1.1rem;
+      background: var(--surface-elevated);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .paste-textarea {
+      width: 100%;
+      flex: 1;
+      min-height: 160px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.74rem;
+      padding: 0.7rem;
+      resize: vertical;
+      outline: none;
+      line-height: 1.5;
+    }
+
+    .paste-textarea:focus {
+      border-color: var(--border-strong);
+    }
+
+    .paste-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 0.65rem;
+      font-size: 0.66rem;
+      color: var(--text-muted);
+    }
+
+    .cli-matrix {
+      flex: 1;
+      padding: 0.9rem 1.1rem;
+      background: var(--surface-elevated);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.6rem;
+    }
+
+    .cli-box {
+      border: 1px solid var(--border);
+      background: var(--bg);
+      padding: 0.5rem 0.7rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .cli-box-label {
+      font-size: 0.62rem;
+      color: var(--text-muted);
+      margin-bottom: 0.18rem;
+    }
+
+    .cli-code {
+      font-size: 0.68rem;
+      color: var(--text-secondary);
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .cli-code span {
+      color: var(--text-primary);
+    }
+
+    .batch-hud {
+      display: none;
+      padding: 0.5rem 1.1rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 0.65rem;
+      position: relative;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .batch-hud.visible {
+      display: flex;
+    }
+
+    .batch-hud-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 2px;
+      background: var(--success);
+      width: 0%;
+      will-change: width;
+    }
+
+    .queue-section {
+      display: none;
+      border-top: 1px solid var(--border);
+      background: var(--surface-elevated);
+      max-height: 165px;
+      overflow-y: auto;
+      contain: content;
+    }
+
+    .queue-section.visible {
+      display: block;
+    }
+
+    .queue-item {
+      padding: 0.6rem 1.1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.7rem;
+      position: relative;
+    }
+
+    .queue-item:last-child {
+      border-bottom: none;
+    }
+
+    .queue-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .queue-filename {
+      color: var(--text-primary);
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .queue-status {
+      color: var(--text-secondary);
+      font-size: 0.64rem;
+      flex-shrink: 0;
+    }
+
+    .queue-meta {
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font-size: 0.61rem;
+      margin-top: 0.18rem;
+    }
+
+    .queue-progress {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 2px;
+      background: var(--text-primary);
+      width: 0%;
+      will-change: width;
+    }
+
+    .btn-action {
+      background: var(--surface);
+      color: var(--text-primary);
+      border: 1px solid var(--border-strong);
+      font-family: inherit;
+      font-size: 0.64rem;
+      padding: 0.18rem 0.48rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .btn-action:hover {
+      background: var(--text-primary);
+      color: var(--surface);
+      border-color: var(--text-primary);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid transparent;
+      font-family: inherit;
+      font-size: 0.61rem;
+      padding: 0.12rem 0.32rem;
+      cursor: pointer;
+    }
+
+    .btn-ghost:hover {
+      color: var(--text-primary);
+      border-color: var(--border);
+      background: var(--surface-elevated);
+    }
+
+    .btn-danger:hover {
+      background: var(--danger);
+      color: #fff;
+      border-color: var(--danger);
+    }
+
+    /* Right Vertical History Sidebar */
+    .vault-sidebar {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.08);
+      display: flex;
+      flex-direction: column;
+      max-height: 440px;
+      contain: content;
+    }
+
+    .vault-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 0.9rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-elevated);
+      font-size: 0.7rem;
+      gap: 0.35rem;
+    }
+
+    .vault-title {
+      color: var(--text-primary);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .vault-count-pill {
+      font-size: 0.62rem;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 0.04rem 0.34rem;
+      font-weight: 400;
+    }
+
+    .vault-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .fmt-select {
+      background: var(--bg);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      font-family: inherit;
+      font-size: 0.62rem;
+      padding: 0.16rem 0.3rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .album-banner {
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.42rem 0.9rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      font-size: 0.64rem;
+      gap: 0.35rem;
+    }
+
+    .album-banner.visible {
+      display: flex;
+    }
+
+    .album-banner a.album-url {
+      color: var(--success);
+      text-decoration: none;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .vault-list {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .vault-empty {
+      flex: 1;
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 1.5rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.66rem;
+      gap: 0.25rem;
+    }
+
+    .vault-row {
+      padding: 0.6rem 0.9rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0.26rem;
+      content-visibility: auto;
+      contain-intrinsic-size: 54px;
+    }
+
+    .vault-row:hover {
+      background: var(--surface-hover);
+    }
+
+    .vault-row:last-child {
+      border-bottom: none;
+    }
+
+    .vault-row-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .vault-link {
+      color: var(--text-primary);
+      text-decoration: none;
+      font-size: 0.71rem;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+
+    .vault-link:hover {
+      text-decoration: underline;
+    }
+
+    .vault-row-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .vault-sub {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+    }
+
+    .vault-secondary-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.1rem;
+      opacity: 0.45;
+      transition: opacity 0.15s ease;
+    }
+
+    .vault-row:hover .vault-secondary-actions {
+      opacity: 1;
+    }
+
+    /* Page Footer */
+    .page-footer {
+      width: 100%;
+      max-width: 1040px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      position: relative;
+      z-index: 2;
+    }
+
+    .specs-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      font-size: 0.64rem;
+      background: var(--surface-elevated);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .spec-cell {
+      padding: 0.55rem 0.9rem;
+      border-right: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .spec-cell:last-child {
+      border-right: none;
+    }
+
+    .spec-label {
+      color: var(--text-muted);
+    }
+
+    .spec-val {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .footer-telemetry {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.48rem 0.9rem;
+      font-size: 0.62rem;
+      color: var(--text-secondary);
+      background: var(--surface);
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .telemetry-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .telemetry-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .telemetry-label {
+      color: var(--text-muted);
+    }
+
+    .telemetry-val {
+      color: var(--text-primary);
+    }
+
+    .telemetry-sep {
+      color: var(--border-strong);
+    }
+
+    /* Modals */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      padding: 1.25rem;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-window {
+      width: 100%;
+      max-width: 720px;
+      max-height: 88vh;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-window.compact {
+      max-width: 460px;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-elevated);
+      font-size: 0.72rem;
+    }
+
+    .modal-title {
+      color: var(--text-primary);
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .modal-body {
+      padding: 1rem;
+      overflow: auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: var(--bg);
+      min-height: 200px;
+    }
+
+    .modal-body img,
+    .modal-body video {
+      max-width: 100%;
+      max-height: 68vh;
+      border: 1px solid var(--border);
+    }
+
+    .modal-body iframe {
+      width: 100%;
+      height: 68vh;
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+
+    .modal-body pre {
+      width: 100%;
+      max-height: 68vh;
+      overflow: auto;
+      font-size: 0.74rem;
+      color: var(--text-primary);
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.5;
+    }
+
+    /* Stage 1: Clean System Specifications Matrix */
+    .codex-grid {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+    }
+
+    .codex-block {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 0.75rem 0.9rem;
+    }
+
+    .codex-cat {
+      font-size: 0.66rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.35rem;
+    }
+
+    .codex-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.64rem;
+      padding: 0.22rem 0;
+      gap: 0.5rem;
+    }
+
+    .codex-k {
+      color: var(--text-muted);
+    }
+
+    .codex-v {
+      color: var(--text-secondary);
+      text-align: right;
+    }
+
+    .codex-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.65rem 1rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface-elevated);
+      font-size: 0.65rem;
+      color: var(--text-secondary);
+    }
+
+    /* Stage 2: Spotlight Walkthrough */
+    .tour-layer {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      pointer-events: auto;
+    }
+
+    .tour-layer.active {
+      display: block;
+    }
+
+    .tour-spotlight {
+      position: fixed;
+      border: 1px solid var(--text-primary);
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.84), 0 0 24px rgba(255, 255, 255, 0.12);
+      pointer-events: none;
+      transition: top 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  left 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  width 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  height 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .tour-card {
+      position: fixed;
+      width: 320px;
+      background: var(--surface);
+      border: 1px solid var(--text-primary);
+      padding: 0.85rem 1rem;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
+      z-index: 2001;
+      transition: top 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                  left 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .tour-step-tag {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-bottom: 0.25rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .tour-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 0.35rem;
+    }
+
+    .tour-desc {
+      font-size: 0.67rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+      margin-bottom: 0.8rem;
+    }
+
+    .tour-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .cmd-input {
+      width: 100%;
+      background: var(--bg);
+      border: none;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.78rem;
+      padding: 0.8rem 1rem;
+      outline: none;
+    }
+
+    .cmd-list {
+      max-height: 250px;
+      overflow-y: auto;
+      background: var(--surface);
+    }
+
+    .cmd-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.6rem 1rem;
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cmd-item:last-child {
+      border-bottom: none;
+    }
+
+    .cmd-item.selected,
+    .cmd-item:hover {
+      background: var(--surface-hover);
+      color: var(--text-primary);
+    }
+
+    .cmd-hint {
+      font-size: 0.62rem;
+      color: var(--text-muted);
+    }
+
+    .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.7rem;
+    }
+
+    .stats-table td {
+      padding: 0.42rem 0.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stats-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .stats-table td:first-child {
+      color: var(--text-muted);
+    }
+
+    .stats-table td:last-child {
+      color: var(--text-primary);
+      text-align: right;
+      font-weight: 500;
+    }
+
+    .shares-textarea {
+      width: 100%;
+      height: 120px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--success);
+      font-family: inherit;
+      font-size: 0.68rem;
+      padding: 0.6rem;
+      resize: none;
+      outline: none;
+      line-height: 1.5;
+      margin: 0.5rem 0 0.75rem;
+    }
+
+    @media (max-width: 880px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+      .codex-grid {
+        grid-template-columns: 1fr;
+      }
+      .specs-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .spec-cell:nth-child(2) {
+        border-right: none;
+      }
+      .spec-cell:nth-child(1),
+      .spec-cell:nth-child(2) {
+        border-bottom: 1px solid var(--border);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="global-drop-banner">Drop anywhere to upload to kura</div>
+
+  <div class="app-shell">
+    <!-- Left Column: Main Console -->
+    <main class="console-frame" id="console-frame">
+      <header class="topbar">
+        <div class="brand">
+          <span class="status-dot" title="Online"></span>
+          <span class="brand-name">kura</span>
+          <span class="brand-kanji">蔵</span>
+        </div>
+        <div class="topbar-meta">
+          <button type="button" class="top-btn" id="codex-btn" title="System Specifications &amp; Interactive Guide">Specs</button>
+          <button type="button" class="top-btn" id="cmd-palette-btn" title="Command Palette (Ctrl+K / ⌘K)">⌘K</button>
+          <button type="button" class="top-btn" id="theme-toggle" title="Toggle theme">DARK</button>
+          <button type="button" class="top-btn panic-btn" id="panic-escape-btn" title="Double-tap Esc: Clear local data &amp; quick exit">ESC×2</button>
+        </div>
+      </header>
+
+      <nav class="control-bar">
+        <div class="mode-tabs" id="mode-tabs">
+          <button type="button" class="tab-btn active" id="tab-files-btn" data-target="view-drop">Files</button>
+          <button type="button" class="tab-btn" id="tab-text-btn" data-target="view-paste">Text</button>
+          <button type="button" class="tab-btn" id="tab-cli-btn" data-target="view-cli">CLI</button>
+        </div>
+        <div class="opsec-toggles">
+          <select id="expiry-select" class="ctrl-select" title="Retention policy">
+            <option value="never">Forever</option>
+            <option value="1h">1h</option>
+            <option value="24h">24h</option>
+            <option value="7d">7d</option>
+            <option value="1v">1v Burn</option>
+            <option value="5v">5v Burn</option>
+            <option value="10v">10v Burn</option>
+          </select>
+          <select id="timelock-select" class="ctrl-select" title="Time-Lock: prevent access until future time">
+            <option value="">Unlock: Now</option>
+            <option value="15m">Lock: 15m</option>
+            <option value="1h">Lock: 1h</option>
+            <option value="6h">Lock: 6h</option>
+            <option value="24h">Lock: 24h</option>
+            <option value="7d">Lock: 7d</option>
+          </select>
+          <select id="shamir-select" class="ctrl-select" title="Shamir's Secret Sharing (M-of-N Split Key)">
+            <option value="">Split: Off</option>
+            <option value="2:3">2-of-3 Keys</option>
+            <option value="3:5">3-of-5 Keys</option>
+            <option value="4:7">4-of-7 Keys</option>
+          </select>
+          <input type="password" id="password-input" class="ctrl-input" maxlength="128" placeholder="Pass" autocomplete="new-password" title="Password protection">
+          <input type="password" id="duress-input" class="ctrl-input duress-field" maxlength="128" placeholder="Duress" autocomplete="new-password" title="Secondary code: deletes file immediately if entered">
+          <button type="button" class="toggle-btn" id="toggle-e2ee" title="Cascade E2EE v2 (AES-256-GCM + ChaCha20 + HKDF)">
+            <span class="toggle-indicator"></span>
+            <span>E2EE</span>
+          </button>
+          <button type="button" class="toggle-btn" id="toggle-pad" title="Bucket Padding: masks exact file size against traffic analysis">
+            <span class="toggle-indicator"></span>
+            <span>PAD</span>
+          </button>
+          <button type="button" class="toggle-btn active" id="toggle-exif" title="Strip image EXIF/GPS metadata">
+            <span class="toggle-indicator"></span>
+            <span>EXIF</span>
+          </button>
+          <button type="button" class="toggle-btn" id="toggle-p2p" title="Direct WebRTC P2P stream (bypasses 200 MiB limit)">
+            <span class="toggle-indicator"></span>
+            <span>P2P</span>
+          </button>
+        </div>
+      </nav>
+
+      <section id="view-drop" class="view-pane active">
+        <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Upload files">
+          <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter">
+            <path d="M12 16V4m0 0L8 8m4-4l4 4M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2"/>
+          </svg>
+          <div class="dropzone-title">Drop files or click to browse</div>
+          <div class="dropzone-hint">Cascade E2EE · Bucket Padding · Shamir M-of-N · Auto P2P &gt; 200 MiB · <span class="kbd">Ctrl+V</span></div>
+          <input type="file" id="file-input" name="file" multiple>
+        </div>
+      </section>
+
+      <section id="view-paste" class="view-pane">
+        <div class="paste-studio">
+          <textarea id="paste-textarea" class="paste-textarea" placeholder="Paste text, code, or one-time note..."></textarea>
+          <div class="paste-footer">
+            <span id="paste-byte-counter">0 B · UTF-8</span>
+            <div style="display:flex;gap:0.35rem;align-items:center;">
+              <button type="button" class="btn-action" id="btn-deploy-note" title="Encrypted one-time note with Copy &amp; Delete">Secret Note (1v)</button>
+              <button type="button" class="btn-action" id="btn-deploy-paste">Upload .txt</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-cli" class="view-pane">
+        <div class="cli-matrix">
+          <div>
+            <div class="cli-box-label">Direct Stream Pipe (stdin / curl -T)</div>
+            <div class="cli-box">
+              <code class="cli-code" id="cmd-pipe">uname -a | curl -T - <span class="origin-placeholder">https://kura.st</span>/upload/sys.txt</code>
+              <button type="button" class="btn-action" data-copy-target="cmd-pipe">Copy</button>
+            </div>
+          </div>
+          <div>
+            <div class="cli-box-label">POSIX CLI Script (with Time-Lock &amp; Duress support)</div>
+            <div class="cli-box">
+              <code class="cli-code" id="cmd-script">curl -sSL <span class="origin-placeholder">https://kura.st</span>/kura.sh | sh -s -- -e 5v -t 1h -p pass -d wipe file.png</code>
+              <button type="button" class="btn-action" data-copy-target="cmd-script">Copy</button>
+            </div>
+          </div>
+          <div>
+            <div class="cli-box-label">cURL (Time-Locked + Secondary Wipe Code)</div>
+            <div class="cli-box">
+              <code class="cli-code" id="cmd-dedup">curl -H "X-Kura-Timelock: 24h" -H "X-Kura-Password: pass" -H "X-Kura-Duress-Password: wipe" -F "file=@file.png" <span class="origin-placeholder">https://kura.st</span>/upload</code>
+              <button type="button" class="btn-action" data-copy-target="cmd-dedup">Copy</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div id="batch-hud" class="batch-hud">
+        <span id="batch-hud-left">Batch: 0/0</span>
+        <span id="batch-hud-right">0 B / 0 B</span>
+        <div id="batch-hud-bar" class="batch-hud-bar"></div>
+      </div>
+
+      <section id="queue-section" class="queue-section"></section>
+    </main>
+
+    <!-- Right Column: Clean Vertical Vault Sidebar -->
+    <aside class="vault-sidebar" id="vault-section">
+      <div class="vault-topbar">
+        <div class="vault-title">
+          <span>Vault</span>
+          <span class="vault-count-pill" id="vault-count">0</span>
+        </div>
+        <div class="vault-toolbar">
+          <select id="fmt-select" class="fmt-select" title="Link format">
+            <option value="raw">URL</option>
+            <option value="md">MD</option>
+            <option value="html">HTML</option>
+            <option value="bb">BB</option>
+          </select>
+          <button type="button" class="btn-action" id="btn-create-album" title="Bundle into streaming .zip Album">.zip</button>
+          <button type="button" class="btn-action" id="btn-copy-all" title="Copy all links">All</button>
+          <button type="button" class="btn-action btn-danger" id="btn-purge-vault" title="Clear local vault">×</button>
+        </div>
+      </div>
+
+      <div id="album-banner" class="album-banner">
+        <a id="album-banner-link" class="album-url" href="#" target="_blank" rel="noopener noreferrer"></a>
+        <div style="display:flex;gap:0.25rem;flex-shrink:0;">
+          <a id="album-zip-link" href="#" class="btn-action">.zip</a>
+          <button type="button" class="btn-action" id="album-copy-btn">Copy</button>
+        </div>
+      </div>
+
+      <div id="vault-list" class="vault-list"></div>
+    </aside>
+  </div>
+
+  <!-- Page Footer: Technical Specs + Telemetry -->
+  <footer class="page-footer" id="page-footer">
+    <div class="specs-grid">
+      <div class="spec-cell">
+        <span class="spec-label">Cascade E2EE</span>
+        <span class="spec-val">AES-GCM + ChaCha20</span>
+      </div>
+      <div class="spec-cell">
+        <span class="spec-label">Access Control</span>
+        <span class="spec-val">Shamir M-of-N &amp; Time-Lock</span>
+      </div>
+      <div class="spec-cell">
+        <span class="spec-label">Traffic Privacy</span>
+        <span class="spec-val">Bucket Padding &amp; P2P</span>
+      </div>
+      <div class="spec-cell">
+        <span class="spec-label">Storage</span>
+        <span class="spec-val">Crypto-Shred DEK + R2</span>
+      </div>
+    </div>
+
+    <div class="footer-telemetry">
+      <div class="telemetry-group">
+        <span class="telemetry-item">
+          <span class="status-dot"></span>
+          <span class="telemetry-label">NODE:</span>
+          <span class="telemetry-val" id="stat-node-ping">ONLINE</span>
+        </span>
+        <span class="telemetry-sep">/</span>
+        <span class="telemetry-item">
+          <span class="telemetry-label">VAULT:</span>
+          <span class="telemetry-val" id="stat-vault-summary">0 FILES (0 B)</span>
+        </span>
+      </div>
+
+      <div class="telemetry-group">
+        <span class="telemetry-item">
+          <span class="telemetry-label">TODAY:</span>
+          <span class="telemetry-val" id="stat-daily-traffic">0 UPLOADS · 0 B</span>
+        </span>
+        <span class="telemetry-sep">/</span>
+        <span class="telemetry-item">
+          <span class="telemetry-label">CAS SAVED:</span>
+          <span class="telemetry-val" id="stat-cas-saved">0 B</span>
+        </span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Stage 1: Clean System Specifications Modal -->
+  <div class="modal-backdrop" id="codex-modal" role="dialog" aria-modal="true">
+    <div class="modal-window">
+      <div class="modal-header">
+        <span class="modal-title">System Overview &amp; Specifications</span>
+        <button type="button" class="btn-action" id="codex-close-btn">Interface Guide →</button>
+      </div>
+      <div class="modal-body" style="display:block;">
+        <div class="codex-grid">
+          <div class="codex-block">
+            <div class="codex-cat">Encryption &amp; Key Management</div>
+            <div class="codex-row"><span class="codex-k">Cascade Cipher</span><span class="codex-v">AES-256-GCM + ChaCha20</span></div>
+            <div class="codex-row"><span class="codex-k">Subkey Derivation</span><span class="codex-v">HKDF-SHA256 + AAD Binding</span></div>
+            <div class="codex-row"><span class="codex-k">Split Custody</span><span class="codex-v">Shamir M-of-N over GF(256)</span></div>
+            <div class="codex-row"><span class="codex-k">Password KDF</span><span class="codex-v">Hybrid Argon2id-Style Matrix</span></div>
+            <div class="codex-row"><span class="codex-k">Duress &amp; Shredding</span><span class="codex-v">Envelope DEK Destruction</span></div>
+          </div>
+          <div class="codex-block">
+            <div class="codex-cat">Storage &amp; Transfer</div>
+            <div class="codex-row"><span class="codex-k">Standard Upload</span><span class="codex-v">Memory-to-R2 Stream (&le; 8 MiB)</span></div>
+            <div class="codex-row"><span class="codex-k">Large Files</span><span class="codex-v">Resumable 10 MiB Chunks</span></div>
+            <div class="codex-row"><span class="codex-k">Direct P2P</span><span class="codex-v">WebRTC DataChannel (&gt; 200 MiB)</span></div>
+            <div class="codex-row"><span class="codex-k">Time-Lock Gate</span><span class="codex-v">Enforced Future Release</span></div>
+            <div class="codex-row"><span class="codex-k">Database Sync</span><span class="codex-v">SQLite WAL + Litestream</span></div>
+          </div>
+          <div class="codex-block">
+            <div class="codex-cat">Privacy &amp; Traffic Masking</div>
+            <div class="codex-row"><span class="codex-k">Size Masking</span><span class="codex-v">Discrete Bucket Padding</span></div>
+            <div class="codex-row"><span class="codex-k">Image Privacy</span><span class="codex-v">Client-Side EXIF/GPS Removal</span></div>
+            <div class="codex-row"><span class="codex-k">File Validation</span><span class="codex-v">4 KiB Magic-Byte Inspection</span></div>
+            <div class="codex-row"><span class="codex-k">Link Previews</span><span class="codex-v">Crawler &amp; Bot Protection</span></div>
+            <div class="codex-row"><span class="codex-k">Quick Exit</span><span class="codex-v">Clear Local Data (Esc × 2)</span></div>
+          </div>
+          <div class="codex-block">
+            <div class="codex-cat">Network &amp; Limits</div>
+            <div class="codex-row"><span class="codex-k">Rate Limiting</span><span class="codex-v">Sliding Count-Min Sketch (/64)</span></div>
+            <div class="codex-row"><span class="codex-k">Abuse Prevention</span><span class="codex-v">4-Way Set-Associative PoW</span></div>
+            <div class="codex-row"><span class="codex-k">Timing Privacy</span><span class="codex-v">Constant-Time Lookups</span></div>
+            <div class="codex-row"><span class="codex-k">Batch Download</span><span class="codex-v">Streaming ZIP Archive</span></div>
+            <div class="codex-row"><span class="codex-k">Archive Quota</span><span class="codex-v">1 Stream/IP · 25 Downloads</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="codex-footer">
+        <span>Close this window to start a quick walkthrough of all interface controls.</span>
+        <button type="button" class="btn-action" id="codex-start-tour-btn">Start Walkthrough →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stage 2: Interactive Spotlight Walkthrough Layer -->
+  <div class="tour-layer" id="tour-layer">
+    <div class="tour-spotlight" id="tour-spotlight"></div>
+    <div class="tour-card" id="tour-card">
+      <div class="tour-step-tag">
+        <span id="tour-step-num">STEP 01 / 19</span>
+        <span id="tour-step-cat">UPLOAD</span>
+      </div>
+      <div class="tour-title" id="tour-title">Component</div>
+      <div class="tour-desc" id="tour-desc">Description</div>
+      <div class="tour-controls">
+        <button type="button" class="btn-ghost" id="tour-skip-btn">Skip (Esc)</button>
+        <div style="display:flex;gap:0.35rem;">
+          <button type="button" class="btn-action" id="tour-prev-btn">Prev</button>
+          <button type="button" class="btn-action" id="tour-next-btn">Next →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview / QR / Stats / Shamir Shares Modal -->
+  <div class="modal-backdrop" id="preview-modal" role="dialog" aria-modal="true">
+    <div class="modal-window" id="preview-window">
+      <div class="modal-header">
+        <span class="modal-title" id="preview-title">Preview</span>
+        <div style="display:flex;gap:0.4rem;flex-shrink:0;">
+          <a id="preview-raw-link" href="#" target="_blank" rel="noopener noreferrer" class="btn-action">Open tab</a>
+          <button type="button" class="btn-action" id="preview-close">Close</button>
+        </div>
+      </div>
+      <div class="modal-body" id="preview-body"></div>
+    </div>
+  </div>
+
+  <!-- Command Palette Modal (⌘K) -->
+  <div class="modal-backdrop" id="cmd-modal" role="dialog" aria-modal="true">
+    <div class="modal-window compact">
+      <input type="text" id="cmd-input" class="cmd-input" placeholder="Type a command..." autocomplete="off">
+      <div id="cmd-list" class="cmd-list"></div>
+    </div>
+  </div>
+
+  <script>
+    // ========================================================================
+    // PRECOMPUTED CRYPTOGRAPHIC & FINITE-FIELD TABLES (ZERO-RUNTIME OVERHEAD)
+    // ========================================================================
+    const MAX_BYTES = 200 * 1024 * 1024;
+    const RESUMABLE_THRESHOLD = 10 * 1024 * 1024;
+    const CLIPBOARD_WIPE_MS = 30_000;
+    const PADDING_BUCKETS = [
+      64 * 1024,
+      512 * 1024,
+      2 * 1024 * 1024,
+      8 * 1024 * 1024,
+      32 * 1024 * 1024,
+      200 * 1024 * 1024
+    ];
+    const VAULT_STORAGE_KEY = 'kura_ephemeral_vault_v1';
+    const DAILY_STATS_KEY = 'kura_daily_telemetry_v1';
+    const THEMES = ['dark', 'light'];
+
+    // Precomputed Hex Lookup Table for O(1) byte-to-hex encoding
+    const HEX_STR_TABLE = Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, '0'));
+
+    // Precomputed GF(2^8) Log/Antilog Tables (Generator 0x03, Irreducible Polynomial 0x11B) for Shamir SSS
+    const GF256_EXP = new Uint8Array(512);
+    const GF256_LOG = new Uint8Array(256);
+    (() => {
+      let x = 1;
+      for (let i = 0; i < 255; i++) {
+        GF256_EXP[i] = x;
+        GF256_LOG[x] = i;
+        const hi = x & 0x80;
+        const x2 = ((x << 1) & 0xFF) ^ (hi ? 0x1B : 0);
+        x = x2 ^ x; // Multiply by generator g = 3 (x + 1)
+      }
+      for (let i = 255; i < 512; i++) {
+        GF256_EXP[i] = GF256_EXP[i - 255];
+      }
+    })();
+
+    // Precomputed GF(2^8) Tables (Polynomial 0x11D) for Reed-Solomon QR ECC
+    const QR_GF_EXP = new Uint8Array(512);
+    const QR_GF_LOG = new Uint8Array(256);
+    (() => {
+      let x = 1;
+      for (let i = 0; i < 255; i++) {
+        QR_GF_EXP[i] = x;
+        QR_GF_LOG[x] = i;
+        x = (x << 1) ^ (x & 0x80 ? 0x11D : 0);
+      }
+      for (let i = 255; i < 512; i++) QR_GF_EXP[i] = QR_GF_EXP[i - 255];
+    })();
+
+    // ========================================================================
+    // DOM REFERENCES & STATE
+    // ========================================================================
+    const consoleFrame = document.getElementById('console-frame');
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('file-input');
+    const batchHud = document.getElementById('batch-hud');
+    const batchHudLeft = document.getElementById('batch-hud-left');
+    const batchHudRight = document.getElementById('batch-hud-right');
+    const batchHudBar = document.getElementById('batch-hud-bar');
+    const queueSection = document.getElementById('queue-section');
+    const vaultList = document.getElementById('vault-list');
+    const vaultCount = document.getElementById('vault-count');
+    const albumBanner = document.getElementById('album-banner');
+    const albumBannerLink = document.getElementById('album-banner-link');
+    const albumZipLink = document.getElementById('album-zip-link');
+    const albumCopyBtn = document.getElementById('album-copy-btn');
+    const fmtSelect = document.getElementById('fmt-select');
+    const expirySelect = document.getElementById('expiry-select');
+    const timelockSelect = document.getElementById('timelock-select');
+    const shamirSelect = document.getElementById('shamir-select');
+    const passwordInput = document.getElementById('password-input');
+    const duressInput = document.getElementById('duress-input');
+    const toggleE2eeBtn = document.getElementById('toggle-e2ee');
+    const togglePadBtn = document.getElementById('toggle-pad');
+    const toggleExifBtn = document.getElementById('toggle-exif');
+    const toggleP2pBtn = document.getElementById('toggle-p2p');
+    const codexBtn = document.getElementById('codex-btn');
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    const cmdPaletteBtn = document.getElementById('cmd-palette-btn');
+    const panicEscapeBtn = document.getElementById('panic-escape-btn');
+    const pasteTextarea = document.getElementById('paste-textarea');
+    const pasteByteCounter = document.getElementById('paste-byte-counter');
+    const btnDeployPaste = document.getElementById('btn-deploy-paste');
+    const btnDeployNote = document.getElementById('btn-deploy-note');
+
+    const statNodePing = document.getElementById('stat-node-ping');
+    const statVaultSummary = document.getElementById('stat-vault-summary');
+    const statDailyTraffic = document.getElementById('stat-daily-traffic');
+    const statCasSaved = document.getElementById('stat-cas-saved');
+
+    const codexModal = document.getElementById('codex-modal');
+    const codexCloseBtn = document.getElementById('codex-close-btn');
+    const codexStartTourBtn = document.getElementById('codex-start-tour-btn');
+
+    const tourLayer = document.getElementById('tour-layer');
+    const tourSpotlight = document.getElementById('tour-spotlight');
+    const tourCard = document.getElementById('tour-card');
+    const tourStepNum = document.getElementById('tour-step-num');
+    const tourStepCat = document.getElementById('tour-step-cat');
+    const tourTitle = document.getElementById('tour-title');
+    const tourDesc = document.getElementById('tour-desc');
+    const tourSkipBtn = document.getElementById('tour-skip-btn');
+    const tourPrevBtn = document.getElementById('tour-prev-btn');
+    const tourNextBtn = document.getElementById('tour-next-btn');
+
+    const previewModal = document.getElementById('preview-modal');
+    const previewWindow = document.getElementById('preview-window');
+    const previewTitle = document.getElementById('preview-title');
+    const previewBody = document.getElementById('preview-body');
+    const previewRawLink = document.getElementById('preview-raw-link');
+    const previewClose = document.getElementById('preview-close');
+
+    const cmdModal = document.getElementById('cmd-modal');
+    const cmdInput = document.getElementById('cmd-input');
+    const cmdList = document.getElementById('cmd-list');
+
+    let stripExifEnabled = true;
+    let e2eeEnabled = false;
+    let padEnabled = false;
+    let p2pEnabled = false;
+    let clipboardWipeTimer = null;
+
+    const batchState = {
+      totalFiles: 0,
+      doneFiles: 0,
+      totalBytes: 0,
+      fileLoaded: new Map(),
+      startTime: 0,
+      rafPending: false
+    };
+
+    const yieldFrame = () => new Promise(r => requestAnimationFrame(r));
+
+    const triggerPanicEscape = () => {
+      try {
+        localStorage.clear();
+        sessionStorage.clear();
+        navigator.clipboard.writeText('');
+      } catch (_) {}
+      document.body.innerHTML = '';
+      window.location.replace('https://en.wikipedia.org/wiki/Special:Random');
+    };
+
+    panicEscapeBtn.addEventListener('click', triggerPanicEscape);
+
+    passwordInput.addEventListener('input', () => {
+      if (passwordInput.value.trim().length > 0) {
+        duressInput.classList.add('visible');
+      } else if (!duressInput.value.trim().length) {
+        duressInput.classList.remove('visible');
+      }
+    });
+
+    shamirSelect.addEventListener('change', () => {
+      if (shamirSelect.value && !e2eeEnabled) {
+        e2eeEnabled = true;
+        toggleE2eeBtn.classList.add('active');
+      }
+    });
+
+    const savedTheme = localStorage.getItem('kura_theme');
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    let currentTheme = savedTheme || (systemPrefersDark ? 'dark' : 'light');
+    if (!THEMES.includes(currentTheme)) currentTheme = 'dark';
+
+    const applyTheme = async (nextTheme, withTransition = true) => {
+      if (!withTransition || !document.startViewTransition) {
+        document.documentElement.setAttribute('data-theme', nextTheme);
+        localStorage.setItem('kura_theme', nextTheme);
+        themeToggleBtn.textContent = nextTheme.toUpperCase();
+        return;
+      }
+      const transition = document.startViewTransition(() => {
+        document.documentElement.setAttribute('data-theme', nextTheme);
+        localStorage.setItem('kura_theme', nextTheme);
+        themeToggleBtn.textContent = nextTheme.toUpperCase();
+      });
+      try { await transition.ready; } catch (_) {}
+    };
+
+    applyTheme(currentTheme, false);
+
+    themeToggleBtn.addEventListener('click', () => {
+      const currentIndex = THEMES.indexOf(document.documentElement.getAttribute('data-theme') || 'dark');
+      const nextTheme = THEMES[(currentIndex + 1) % THEMES.length];
+      applyTheme(nextTheme, true);
+    });
+
+    if (window.location.origin && window.location.origin !== 'null') {
+      document.querySelectorAll('.origin-placeholder').forEach(el => {
+        el.textContent = window.location.origin;
+      });
+    }
+
+    const switchTab = (targetId) => {
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.target === targetId);
+      });
+      document.querySelectorAll('.view-pane').forEach(p => {
+        p.classList.toggle('active', p.id === targetId);
+      });
+    };
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => switchTab(btn.dataset.target));
+    });
+
+    toggleExifBtn.addEventListener('click', () => {
+      stripExifEnabled = !stripExifEnabled;
+      toggleExifBtn.classList.toggle('active', stripExifEnabled);
+    });
+
+    toggleE2eeBtn.addEventListener('click', () => {
+      e2eeEnabled = !e2eeEnabled;
+      toggleE2eeBtn.classList.toggle('active', e2eeEnabled);
+      if (!e2eeEnabled) {
+        padEnabled = false;
+        togglePadBtn.classList.remove('active');
+        shamirSelect.value = '';
+      }
+    });
+
+    togglePadBtn.addEventListener('click', () => {
+      padEnabled = !padEnabled;
+      togglePadBtn.classList.toggle('active', padEnabled);
+      if (padEnabled && !e2eeEnabled) {
+        e2eeEnabled = true;
+        toggleE2eeBtn.classList.add('active');
+      }
+    });
+
+    toggleP2pBtn.addEventListener('click', () => {
+      p2pEnabled = !p2pEnabled;
+      toggleP2pBtn.classList.toggle('active', p2pEnabled);
+    });
+
+    // Fast branchless-style byte formatter (avoids slow Math.log/Math.pow on hot progress paths)
+    const formatBytes = (bytes) => {
+      if (!bytes || bytes <= 0) return '0 B';
+      if (bytes < 1024) return (bytes | 0) + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(2).replace(/\.?0+$/, '') + ' KiB';
+      if (bytes < 1073741824) return (bytes / 1048576).toFixed(2).replace(/\.?0+$/, '') + ' MiB';
+      return (bytes / 1073741824).toFixed(2).replace(/\.?0+$/, '') + ' GiB';
+    };
+
+    // High-speed chunked Uint8Array -> URL-Safe Base64 encoder
+    const bytesToBase64Url = (bytes) => {
+      const CHUNK = 0x8000;
+      const parts = [];
+      for (let i = 0; i < bytes.length; i += CHUNK) {
+        parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK)));
+      }
+      return btoa(parts.join('')).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    };
+
+    const getTodayKey = () => new Date().toISOString().slice(0, 10);
+
+    const loadDailyTelemetry = () => {
+      try {
+        const raw = JSON.parse(localStorage.getItem(DAILY_STATS_KEY) || '{}');
+        if (raw.day !== getTodayKey()) {
+          return { day: getTodayKey(), uploads: 0, bytes: 0, casSaved: 0 };
+        }
+        return {
+          day: raw.day,
+          uploads: Number(raw.uploads) || 0,
+          bytes: Number(raw.bytes) || 0,
+          casSaved: Number(raw.casSaved) || 0
+        };
+      } catch (_) {
+        return { day: getTodayKey(), uploads: 0, bytes: 0, casSaved: 0 };
+      }
+    };
+
+    const recordDailyUpload = (size, isDedup) => {
+      const st = loadDailyTelemetry();
+      st.uploads += 1;
+      st.bytes += size;
+      if (isDedup) st.casSaved += size;
+      localStorage.setItem(DAILY_STATS_KEY, JSON.stringify(st));
+      refreshFooterTelemetry();
+    };
+
+    const measureNodeLatency = async () => {
+      const t0 = performance.now();
+      try {
+        const res = await fetch('/healthz', { cache: 'no-store' });
+        if (res.ok) {
+          const rtt = Math.max(1, Math.round(performance.now() - t0));
+          statNodePing.textContent = `ONLINE · ${rtt}ms`;
+        }
+      } catch (_) {
+        statNodePing.textContent = 'ONLINE';
+      }
+    };
+
+    // Zero-Trace Clipboard Copy: automatically scrubs sensitive links/shares from clipboard after 30s
+    const copyToClipboard = async (text, btn) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        if (btn) {
+          const prev = btn.textContent;
+          btn.textContent = 'Copied';
+          setTimeout(() => { btn.textContent = prev; }, 1300);
+        }
+        if (clipboardWipeTimer) clearTimeout(clipboardWipeTimer);
+        if (text.includes('#') || text.includes(':')) {
+          clipboardWipeTimer = setTimeout(async () => {
+            try {
+              const cur = await navigator.clipboard.readText();
+              if (cur === text) await navigator.clipboard.writeText('');
+            } catch (_) {}
+          }, CLIPBOARD_WIPE_MS);
+        }
+      } catch (_) {
+        if (btn) btn.textContent = 'Error';
+      }
+    };
+
+    document.querySelectorAll('[data-copy-target]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = document.getElementById(btn.dataset.copyTarget);
+        copyToClipboard(target.textContent.trim(), btn);
+      });
+    });
+
+    const computeClientSha256 = async (file) => {
+      if (!window.crypto || !window.crypto.subtle) return null;
+      const buffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+      const bytes = new Uint8Array(hashBuffer);
+      let hex = '';
+      for (let i = 0; i < 32; i++) hex += HEX_STR_TABLE[bytes[i]];
+      return hex;
+    };
+
+    // Zero-Allocation Binary PoW Solver with non-blocking UI frame yielding
+    const solvePowChallenge = async (challenge, difficultyBits = 16) => {
+      const prefixBytes = new TextEncoder().encode(challenge + ':');
+      const pLen = prefixBytes.length;
+      const scratch = new Uint8Array(pLen + 12);
+      scratch.set(prefixBytes, 0);
+
+      const fullBytes = difficultyBits >> 3;
+      const remBits = difficultyBits & 7;
+      const mask = remBits > 0 ? (0xFF << (8 - remBits)) & 0xFF : 0;
+
+      for (let nonce = 0; nonce < 10_000_000; nonce++) {
+        if ((nonce & 4095) === 4095) await yieldFrame();
+
+        // Format integer nonce directly into ASCII byte buffer without String allocation
+        let n = nonce;
+        let dLen = 0;
+        let tmp = n;
+        do { dLen++; tmp = (tmp / 10) | 0; } while (tmp > 0);
+        const totalLen = pLen + dLen;
+        for (let pos = totalLen - 1; pos >= pLen; pos--) {
+          scratch[pos] = 48 + (n % 10);
+          n = (n / 10) | 0;
+        }
+
+        const buf = await crypto.subtle.digest('SHA-256', scratch.subarray(0, totalLen));
+        const digest = new Uint8Array(buf);
+        let ok = true;
+        for (let i = 0; i < fullBytes; i++) {
+          if (digest[i] !== 0) { ok = false; break; }
+        }
+        if (ok && remBits > 0 && (digest[fullBytes] & mask) !== 0) {
+          ok = false;
+        }
+        if (ok) return `${challenge}:${nonce}`;
+      }
+      return null;
+    };
+
+    const scrubImageMetadata = (file) => {
+      return new Promise((resolve) => {
+        const scrubbable = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!stripExifEnabled || !scrubbable.includes(file.type)) {
+          return resolve(file);
+        }
+
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
+
+        img.onload = () => {
+          URL.revokeObjectURL(objectUrl);
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+
+          canvas.toBlob((blob) => {
+            if (!blob) return resolve(file);
+            const cleanedFile = new File([blob], file.name, {
+              type: file.type,
+              lastModified: Date.now()
+            });
+            resolve(cleanedFile);
+          }, file.type, 0.96);
+        };
+
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          resolve(file);
+        };
+
+        img.src = objectUrl;
+      });
+    };
+
+    // ========================================================================
+    // VECTORIZED CRYPTOGRAPHIC ENGINES (SHAMIR GF(256) & 32-BIT CHACHA20)
+    // ========================================================================
+
+    // O(1) Table-driven GF(256) multiplication (Polynomial 0x11B, Generator 0x03)
+    const gf256MulFast = (a, b) => (a === 0 || b === 0) ? 0 : GF256_EXP[GF256_LOG[a] + GF256_LOG[b]];
+
+    const splitShamirSecret = (secretBytes, thresholdM, totalN) => {
+      const shares = Array.from({ length: totalN }, (_, idx) => ({
+        x: idx + 1,
+        bytes: new Uint8Array(secretBytes.length)
+      }));
+      const coeffs = new Uint8Array(thresholdM);
+
+      for (let byteIdx = 0; byteIdx < secretBytes.length; byteIdx++) {
+        crypto.getRandomValues(coeffs);
+        coeffs[0] = secretBytes[byteIdx];
+        for (let s = 0; s < totalN; s++) {
+          const x = shares[s].x;
+          let y = 0;
+          for (let d = thresholdM - 1; d >= 0; d--) {
+            y = gf256MulFast(y, x) ^ coeffs[d];
+          }
+          shares[s].bytes[byteIdx] = y;
+        }
+      }
+      coeffs.fill(0);
+
+      return shares.map(sh => {
+        const b64 = bytesToBase64Url(sh.bytes);
+        sh.bytes.fill(0);
+        return `${HEX_STR_TABLE[sh.x]}:${b64}`;
+      });
+    };
+
+    // High-Performance 32-bit Word-Aligned RFC 8439 ChaCha20 Stream Cipher
+    // Zero per-block allocations + 32-bit bulk XOR + non-blocking UI frame yields
+    const chacha20XorStream = async (keyBytes, nonceBytes, dataBytes) => {
+      const kView = new DataView(keyBytes.buffer, keyBytes.byteOffset, 32);
+      const nView = new DataView(nonceBytes.buffer, nonceBytes.byteOffset, 12);
+      const totalLen = dataBytes.byteLength;
+      const out = new Uint8Array(totalLen);
+
+      const base = new Uint32Array([
+        0x61707865, 0x3320646e, 0x79622d32, 0x6b206574,
+        kView.getUint32(0, true), kView.getUint32(4, true), kView.getUint32(8, true), kView.getUint32(12, true),
+        kView.getUint32(16, true), kView.getUint32(20, true), kView.getUint32(24, true), kView.getUint32(28, true),
+        0, nView.getUint32(0, true), nView.getUint32(4, true), nView.getUint32(8, true)
+      ]);
+      const st = new Uint32Array(16);
+      const tailBuf = new Uint8Array(64);
+      const tailWords = new Uint32Array(tailBuf.buffer);
+
+      const fullBlocksLen = totalLen & ~63;
+      const inWords = new Uint32Array(dataBytes.buffer, dataBytes.byteOffset, fullBlocksLen >> 2);
+      const outWords = new Uint32Array(out.buffer, 0, fullBlocksLen >> 2);
+
+      let counter = 1;
+      let wordIdx = 0;
+
+      for (let offset = 0; offset < fullBlocksLen; offset += 64, counter = (counter + 1) >>> 0, wordIdx += 16) {
+        if ((offset & 0xFFFFFF) === 0xFFFFFF) await yieldFrame();
+
+        st.set(base);
+        st[12] = counter;
+
+        for (let r = 0; r < 10; r++) {
+          // Column rounds
+          st[0] = (st[0] + st[4]) | 0; st[12] ^= st[0]; st[12] = (st[12] << 16) | (st[12] >>> 16);
+          st[8] = (st[8] + st[12]) | 0; st[4] ^= st[8]; st[4] = (st[4] << 12) | (st[4] >>> 20);
+          st[0] = (st[0] + st[4]) | 0; st[12] ^= st[0]; st[12] = (st[12] << 8) | (st[12] >>> 24);
+          st[8] = (st[8] + st[12]) | 0; st[4] ^= st[8]; st[4] = (st[4] << 7) | (st[4] >>> 25);
+
+          st[1] = (st[1] + st[5]) | 0; st[13] ^= st[1]; st[13] = (st[13] << 16) | (st[13] >>> 16);
+          st[9] = (st[9] + st[13]) | 0; st[5] ^= st[9]; st[5] = (st[5] << 12) | (st[5] >>> 20);
+          st[1] = (st[1] + st[5]) | 0; st[13] ^= st[1]; st[13] = (st[13] << 8) | (st[13] >>> 24);
+          st[9] = (st[9] + st[13]) | 0; st[5] ^= st[9]; st[5] = (st[5] << 7) | (st[5] >>> 25);
+
+          st[2] = (st[2] + st[6]) | 0; st[14] ^= st[2]; st[14] = (st[14] << 16) | (st[14] >>> 16);
+          st[10] = (st[10] + st[14]) | 0; st[6] ^= st[10]; st[6] = (st[6] << 12) | (st[6] >>> 20);
+          st[2] = (st[2] + st[6]) | 0; st[14] ^= st[2]; st[14] = (st[14] << 8) | (st[14] >>> 24);
+          st[10] = (st[10] + st[14]) | 0; st[6] ^= st[10]; st[6] = (st[6] << 7) | (st[6] >>> 25);
+
+          st[3] = (st[3] + st[7]) | 0; st[15] ^= st[3]; st[15] = (st[15] << 16) | (st[15] >>> 16);
+          st[11] = (st[11] + st[15]) | 0; st[7] ^= st[11]; st[7] = (st[7] << 12) | (st[7] >>> 20);
+          st[3] = (st[3] + st[7]) | 0; st[15] ^= st[3]; st[15] = (st[15] << 8) | (st[15] >>> 24);
+          st[11] = (st[11] + st[15]) | 0; st[7] ^= st[11]; st[7] = (st[7] << 7) | (st[7] >>> 25);
+
+          // Diagonal rounds
+          st[0] = (st[0] + st[5]) | 0; st[15] ^= st[0]; st[15] = (st[15] << 16) | (st[15] >>> 16);
+          st[10] = (st[10] + st[15]) | 0; st[5] ^= st[10]; st[5] = (st[5] << 12) | (st[5] >>> 20);
+          st[0] = (st[0] + st[5]) | 0; st[15] ^= st[0]; st[15] = (st[15] << 8) | (st[15] >>> 24);
+          st[10] = (st[10] + st[15]) | 0; st[5] ^= st[10]; st[5] = (st[5] << 7) | (st[5] >>> 25);
+
+          st[1] = (st[1] + st[6]) | 0; st[12] ^= st[1]; st[12] = (st[12] << 16) | (st[12] >>> 16);
+          st[11] = (st[11] + st[12]) | 0; st[6] ^= st[11]; st[6] = (st[6] << 12) | (st[6] >>> 20);
+          st[1] = (st[1] + st[6]) | 0; st[12] ^= st[1]; st[12] = (st[12] << 8) | (st[12] >>> 24);
+          st[11] = (st[11] + st[12]) | 0; st[6] ^= st[11]; st[6] = (st[6] << 7) | (st[6] >>> 25);
+
+          st[2] = (st[2] + st[7]) | 0; st[13] ^= st[2]; st[13] = (st[13] << 16) | (st[13] >>> 16);
+          st[8] = (st[8] + st[13]) | 0; st[7] ^= st[8]; st[7] = (st[7] << 12) | (st[7] >>> 20);
+          st[2] = (st[2] + st[7]) | 0; st[13] ^= st[2]; st[13] = (st[13] << 8) | (st[13] >>> 24);
+          st[8] = (st[8] + st[13]) | 0; st[7] ^= st[8]; st[7] = (st[7] << 7) | (st[7] >>> 25);
+
+          st[3] = (st[3] + st[4]) | 0; st[14] ^= st[3]; st[14] = (st[14] << 16) | (st[14] >>> 16);
+          st[9] = (st[9] + st[14]) | 0; st[4] ^= st[9]; st[4] = (st[4] << 12) | (st[4] >>> 20);
+          st[3] = (st[3] + st[4]) | 0; st[14] ^= st[3]; st[14] = (st[14] << 8) | (st[14] >>> 24);
+          st[9] = (st[9] + st[14]) | 0; st[4] ^= st[9]; st[4] = (st[4] << 7) | (st[4] >>> 25);
+        }
+
+        for (let i = 0; i < 16; i++) {
+          const ks = (st[i] + (i === 12 ? counter : base[i])) | 0;
+          outWords[wordIdx + i] = inWords[wordIdx + i] ^ ks;
+        }
+      }
+
+      if (fullBlocksLen < totalLen) {
+        st.set(base);
+        st[12] = counter;
+        for (let r = 0; r < 10; r++) {
+          st[0] = (st[0] + st[4]) | 0; st[12] ^= st[0]; st[12] = (st[12] << 16) | (st[12] >>> 16);
+          st[8] = (st[8] + st[12]) | 0; st[4] ^= st[8]; st[4] = (st[4] << 12) | (st[4] >>> 20);
+          st[0] = (st[0] + st[4]) | 0; st[12] ^= st[0]; st[12] = (st[12] << 8) | (st[12] >>> 24);
+          st[8] = (st[8] + st[12]) | 0; st[4] ^= st[8]; st[4] = (st[4] << 7) | (st[4] >>> 25);
+          st[1] = (st[1] + st[5]) | 0; st[13] ^= st[1]; st[13] = (st[13] << 16) | (st[13] >>> 16);
+          st[9] = (st[9] + st[13]) | 0; st[5] ^= st[9]; st[5] = (st[5] << 12) | (st[5] >>> 20);
+          st[1] = (st[1] + st[5]) | 0; st[13] ^= st[1]; st[13] = (st[13] << 8) | (st[13] >>> 24);
+          st[9] = (st[9] + st[13]) | 0; st[5] ^= st[9]; st[5] = (st[5] << 7) | (st[5] >>> 25);
+          st[2] = (st[2] + st[6]) | 0; st[14] ^= st[2]; st[14] = (st[14] << 16) | (st[14] >>> 16);
+          st[10] = (st[10] + st[14]) | 0; st[6] ^= st[10]; st[6] = (st[6] << 12) | (st[6] >>> 20);
+          st[2] = (st[2] + st[6]) | 0; st[14] ^= st[2]; st[14] = (st[14] << 8) | (st[14] >>> 24);
+          st[10] = (st[10] + st[14]) | 0; st[6] ^= st[10]; st[6] = (st[6] << 7) | (st[6] >>> 25);
+          st[3] = (st[3] + st[7]) | 0; st[15] ^= st[3]; st[15] = (st[15] << 16) | (st[15] >>> 16);
+          st[11] = (st[11] + st[15]) | 0; st[7] ^= st[11]; st[7] = (st[7] << 12) | (st[7] >>> 20);
+          st[3] = (st[3] + st[7]) | 0; st[15] ^= st[3]; st[15] = (st[15] << 8) | (st[15] >>> 24);
+          st[11] = (st[11] + st[15]) | 0; st[7] ^= st[11]; st[7] = (st[7] << 7) | (st[7] >>> 25);
+          st[0] = (st[0] + st[5]) | 0; st[15] ^= st[0]; st[15] = (st[15] << 16) | (st[15] >>> 16);
+          st[10] = (st[10] + st[15]) | 0; st[5] ^= st[10]; st[5] = (st[5] << 12) | (st[5] >>> 20);
+          st[0] = (st[0] + st[5]) | 0; st[15] ^= st[0]; st[15] = (st[15] << 8) | (st[15] >>> 24);
+          st[10] = (st[10] + st[15]) | 0; st[5] ^= st[10]; st[5] = (st[5] << 7) | (st[5] >>> 25);
+          st[1] = (st[1] + st[6]) | 0; st[12] ^= st[1]; st[12] = (st[12] << 16) | (st[12] >>> 16);
+          st[11] = (st[11] + st[12]) | 0; st[6] ^= st[11]; st[6] = (st[6] << 12) | (st[6] >>> 20);
+          st[1] = (st[1] + st[6]) | 0; st[12] ^= st[1]; st[12] = (st[12] << 8) | (st[12] >>> 24);
+          st[11] = (st[11] + st[12]) | 0; st[6] ^= st[11]; st[6] = (st[6] << 7) | (st[6] >>> 25);
+          st[2] = (st[2] + st[7]) | 0; st[13] ^= st[2]; st[13] = (st[13] << 16) | (st[13] >>> 16);
+          st[8] = (st[8] + st[13]) | 0; st[7] ^= st[8]; st[7] = (st[7] << 12) | (st[7] >>> 20);
+          st[2] = (st[2] + st[7]) | 0; st[13] ^= st[2]; st[13] = (st[13] << 8) | (st[13] >>> 24);
+          st[8] = (st[8] + st[13]) | 0; st[7] ^= st[8]; st[7] = (st[7] << 7) | (st[7] >>> 25);
+          st[3] = (st[3] + st[4]) | 0; st[14] ^= st[3]; st[14] = (st[14] << 16) | (st[14] >>> 16);
+          st[9] = (st[9] + st[14]) | 0; st[4] ^= st[9]; st[4] = (st[4] << 12) | (st[4] >>> 20);
+          st[3] = (st[3] + st[4]) | 0; st[14] ^= st[3]; st[14] = (st[14] << 8) | (st[14] >>> 24);
+          st[9] = (st[9] + st[14]) | 0; st[4] ^= st[9]; st[4] = (st[4] << 7) | (st[4] >>> 25);
+        }
+        for (let i = 0; i < 16; i++) {
+          tailWords[i] = (st[i] + (i === 12 ? counter : base[i])) | 0;
+        }
+        const rem = totalLen - fullBlocksLen;
+        for (let i = 0; i < rem; i++) {
+          out[fullBlocksLen + i] = dataBytes[fullBlocksLen + i] ^ tailBuf[i];
+        }
+      }
+
+      base.fill(0);
+      st.fill(0);
+      tailBuf.fill(0);
+      return out;
+    };
+
+    const computeBucketTargetSize = (rawLen, overhead) => {
+      const total = rawLen + overhead;
+      for (const b of PADDING_BUCKETS) {
+        if (total <= b) return Math.max(rawLen, b - overhead);
+      }
+      return rawLen;
+    };
+
+    // Dual-Cipher Cascade E2EE v2 (HKDF -> ChaCha20 + AES-256-GCM) + Bucket Padding + Shamir M-of-N
+    // Hardened with in-memory key zeroization
+    const encryptFileE2ee = async (file, isSecretNote = false, usePadding = false, shamirSpec = '') => {
+      const masterKey = crypto.getRandomValues(new Uint8Array(32));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const metaJson = JSON.stringify({
+        v: 2,
+        n: file.name,
+        t: isSecretNote ? 'text/kura-note' : (file.type || 'application/octet-stream'),
+        s: file.size,
+        note: isSecretNote
+      });
+      const metaBytes = new TextEncoder().encode(metaJson).slice(0, 255);
+      const envelopeOverhead = 13 + metaBytes.length + 16;
+
+      const rawPlain = new Uint8Array(await file.arrayBuffer());
+      let plainTarget = rawPlain;
+
+      if (usePadding) {
+        const paddedLen = computeBucketTargetSize(rawPlain.byteLength, envelopeOverhead);
+        if (paddedLen > rawPlain.byteLength) {
+          plainTarget = new Uint8Array(paddedLen);
+          plainTarget.set(rawPlain, 0);
+          for (let off = rawPlain.byteLength; off < paddedLen; off += 65536) {
+            const sub = plainTarget.subarray(off, Math.min(paddedLen, off + 65536));
+            crypto.getRandomValues(sub);
+          }
+        }
+      }
+
+      const hkdfBase = await crypto.subtle.importKey('raw', masterKey, 'HKDF', false, ['deriveBits']);
+      const derivedBits = await crypto.subtle.deriveBits(
+        { name: 'HKDF', hash: 'SHA-256', salt: iv, info: metaBytes },
+        hkdfBase,
+        512
+      );
+      const aesKeyBytes = new Uint8Array(derivedBits, 0, 32);
+      const chachaKeyBytes = new Uint8Array(derivedBits, 32, 32);
+
+      // Layer 1: Vectorized 32-bit ChaCha20 Stream Cipher
+      const chachaMixed = await chacha20XorStream(chachaKeyBytes, iv, plainTarget);
+
+      // Layer 2: Hardware-Accelerated AES-256-GCM with AAD metadata binding
+      const aesKey = await crypto.subtle.importKey('raw', aesKeyBytes, 'AES-GCM', false, ['encrypt']);
+      const cipherBuffer = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv, additionalData: metaBytes },
+        aesKey,
+        chachaMixed
+      );
+      const cipherBytes = new Uint8Array(cipherBuffer);
+
+      const packed = new Uint8Array(13 + metaBytes.length + cipherBytes.length);
+      packed.set(iv, 0);
+      packed[12] = metaBytes.length;
+      packed.set(metaBytes, 13);
+      packed.set(cipherBytes, 13 + metaBytes.length);
+
+      let hashKey = '';
+      let shamirShares = null;
+      let shamirM = null;
+
+      if (shamirSpec && shamirSpec.includes(':')) {
+        const [mStr, nStr] = shamirSpec.split(':');
+        shamirM = Number(mStr);
+        const totalN = Number(nStr);
+        shamirShares = splitShamirSecret(masterKey, shamirM, totalN);
+        hashKey = `sss:${shamirM}-of-${totalN}`;
+      } else {
+        hashKey = bytesToBase64Url(masterKey);
+      }
+
+      // Zeroize all ephemeral cryptographic key material & plaintext buffers from RAM
+      masterKey.fill(0);
+      aesKeyBytes.fill(0);
+      chachaKeyBytes.fill(0);
+      chachaMixed.fill(0);
+      rawPlain.fill(0);
+      if (plainTarget !== rawPlain) plainTarget.fill(0);
+
+      const ext = isSecretNote ? 'note' : 'enc';
+      const encryptedFile = new File([packed], `${file.name}.${ext}`, {
+        type: 'application/octet-stream',
+        lastModified: Date.now()
+      });
+
+      return { encryptedFile, hashKey, shamirShares, shamirM };
+    };
+
+    const openShamirModal = (entry) => {
+      if (!entry.shamirShares || !entry.shamirShares.length) return;
+      previewWindow.classList.add('compact');
+      previewTitle.textContent = `Shamir Key Shares · ${entry.name}`;
+      previewRawLink.href = entry.url;
+      previewBody.innerHTML = '';
+
+      const wrap = document.createElement('div');
+      wrap.style.width = '100%';
+      const info = document.createElement('div');
+      info.style.cssText = 'font-size:0.66rem;color:var(--text-secondary);line-height:1.45;';
+      info.textContent = `Distribute these ${entry.shamirShares.length} shares to separate custodians. Any ${entry.shamirM || 2} shares are required at the download gate to reconstruct the decryption key:`;
+
+      const area = document.createElement('textarea');
+      area.className = 'shares-textarea';
+      area.readOnly = true;
+      area.value = entry.shamirShares.join('\n');
+
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'btn-action';
+      copyBtn.style.width = '100%';
+      copyBtn.style.justifyContent = 'center';
+      copyBtn.style.padding = '0.45rem';
+      copyBtn.textContent = 'Copy All Shares';
+      copyBtn.onclick = () => copyToClipboard(area.value, copyBtn);
+
+      wrap.appendChild(info);
+      wrap.appendChild(area);
+      wrap.appendChild(copyBtn);
+      previewBody.appendChild(wrap);
+      previewModal.classList.add('open');
+    };
+
+    const generateQrSvg = (text) => {
+      const data = new TextEncoder().encode(text);
+      const VERSIONS = [
+        null,
+        [19, 7, 1, 19, []],
+        [34, 10, 1, 34, [6, 18]],
+        [55, 15, 1, 55, [6, 22]],
+        [80, 20, 1, 80, [6, 26]],
+        [108, 26, 1, 108, [6, 30]],
+        [136, 18, 2, 68, [6, 34]],
+        [156, 20, 2, 78, [6, 22, 38]],
+        [194, 24, 2, 97, [6, 24, 42]]
+      ];
+      let ver = 1;
+      while (ver <= 8 && data.length + 2 > VERSIONS[ver][0]) ver++;
+      if (ver > 8) return null;
+
+      const [totalData, eccLen, numBlocks, dataPerBlock, alignPos] = VERSIONS[ver];
+      const bits = [];
+      const pushBits = (val, len) => {
+        for (let i = len - 1; i >= 0; i--) bits.push((val >> i) & 1);
+      };
+      pushBits(0b0100, 4);
+      pushBits(data.length, 8);
+      for (const b of data) pushBits(b, 8);
+      pushBits(0, Math.min(4, totalData * 8 - bits.length));
+      while (bits.length & 7) bits.push(0);
+
+      const codewords = [];
+      for (let i = 0; i < bits.length; i += 8) {
+        let byte = 0;
+        for (let j = 0; j < 8; j++) byte = (byte << 1) | bits[i + j];
+        codewords.push(byte);
+      }
+      const pads = [0xEC, 0x11];
+      let padIdx = 0;
+      while (codewords.length < totalData) codewords.push(pads[padIdx++ & 1]);
+
+      const gfMul = (a, b) => (a === 0 || b === 0) ? 0 : QR_GF_EXP[QR_GF_LOG[a] + QR_GF_LOG[b]];
+
+      let gen = [1];
+      for (let i = 0; i < eccLen; i++) {
+        const next = new Array(gen.length + 1).fill(0);
+        for (let j = 0; j < gen.length; j++) {
+          next[j] ^= gen[j];
+          next[j + 1] ^= gfMul(gen[j], QR_GF_EXP[i]);
+        }
+        gen = next;
+      }
+
+      const blocks = [];
+      const eccBlocks = [];
+      for (let b = 0; b < numBlocks; b++) {
+        const slice = codewords.slice(b * dataPerBlock, (b + 1) * dataPerBlock);
+        blocks.push(slice);
+        const rem = new Array(eccLen).fill(0);
+        for (const byte of slice) {
+          const factor = byte ^ rem.shift();
+          rem.push(0);
+          for (let j = 0; j < eccLen; j++) rem[j] ^= gfMul(gen[j + 1], factor);
+        }
+        eccBlocks.push(rem);
+      }
+
+      const finalBytes = [];
+      for (let i = 0; i < dataPerBlock; i++) {
+        for (let b = 0; b < numBlocks; b++) finalBytes.push(blocks[b][i]);
+      }
+      for (let i = 0; i < eccLen; i++) {
+        for (let b = 0; b < numBlocks; b++) finalBytes.push(eccBlocks[b][i]);
+      }
+
+      const size = 17 + ver * 4;
+      const grid = Array.from({ length: size }, () => new Uint8Array(size));
+      const reserved = Array.from({ length: size }, () => new Uint8Array(size));
+
+      const setMod = (r, c, val) => {
+        if (r >= 0 && r < size && c >= 0 && c < size) {
+          grid[r][c] = val ? 1 : 0;
+          reserved[r][c] = 1;
+        }
+      };
+
+      const drawFinder = (r0, c0) => {
+        for (let dr = -1; dr <= 7; dr++) {
+          for (let dc = -1; dc <= 7; dc++) {
+            const inside = dr >= 0 && dr <= 6 && dc >= 0 && dc <= 6 &&
+              (dr === 0 || dr === 6 || dc === 0 || dc === 6 || (dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4));
+            setMod(r0 + dr, c0 + dc, inside ? 1 : 0);
+          }
+        }
+      };
+      drawFinder(0, 0);
+      drawFinder(0, size - 7);
+      drawFinder(size - 7, 0);
+
+      for (let i = 8; i < size - 8; i++) {
+        setMod(6, i, (i & 1) === 0);
+        setMod(i, 6, (i & 1) === 0);
+      }
+
+      for (const r of alignPos) {
+        for (const c of alignPos) {
+          if ((r < 9 && c < 9) || (r < 9 && c > size - 10) || (r > size - 10 && c < 9)) continue;
+          for (let dr = -2; dr <= 2; dr++) {
+            for (let dc = -2; dc <= 2; dc++) {
+              setMod(r + dr, c + dc, Math.max(Math.abs(dr), Math.abs(dc)) !== 1);
+            }
+          }
+        }
+      }
+
+      for (let i = 0; i < 9; i++) {
+        if (i !== 6) {
+          reserved[8][i] = 1;
+          reserved[i][8] = 1;
+        }
+      }
+      for (let i = 0; i < 8; i++) {
+        reserved[8][size - 1 - i] = 1;
+        reserved[size - 1 - i][8] = 1;
+      }
+      setMod(size - 8, 8, 1);
+
+      if (ver >= 7) {
+        const vInfo = ver === 7 ? 0x07c94 : 0x085bc;
+        for (let i = 0; i < 18; i++) {
+          const bit = (vInfo >> i) & 1;
+          const a = (i / 3) | 0, b = (i % 3) + size - 11;
+          setMod(a, b, bit);
+          setMod(b, a, bit);
+        }
+      }
+
+      let bitIdx = 0;
+      let upward = true;
+      for (let col = size - 1; col > 0; col -= 2) {
+        if (col === 6) col--;
+        for (let step = 0; step < size; step++) {
+          const row = upward ? size - 1 - step : step;
+          for (let d = 0; d < 2; d++) {
+            const c = col - d;
+            if (!reserved[row][c]) {
+              const bit = bitIdx < finalBytes.length * 8
+                ? (finalBytes[bitIdx >> 3] >> (7 - (bitIdx & 7))) & 1
+                : 0;
+              bitIdx++;
+              grid[row][c] = bit ^ (((row + c) & 1) === 0 ? 1 : 0);
+            }
+          }
+        }
+        upward = !upward;
+      }
+
+      const fmtBits = 0x77c4;
+      const fmtCoords1 = [[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];
+      for (let i = 0; i < 15; i++) {
+        const bit = (fmtBits >> i) & 1;
+        const [r1, c1] = fmtCoords1[i];
+        grid[r1][c1] = bit;
+        if (i < 8) grid[8][size - 1 - i] = bit;
+        else grid[size - 15 + i][8] = bit;
+      }
+
+      const pathParts = [];
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          if (grid[r][c]) pathParts.push(`M${c + 4},${r + 4}h1v1h-1z`);
+        }
+      }
+      const dim = size + 8;
+      return `<svg viewBox="0 0 ${dim} ${dim}" width="210" height="210" shape-rendering="crispEdges" style="background:#fff;border:1px solid var(--border);"><path d="${pathParts.join('')}" fill="#000"/></svg>`;
+    };
+
+    const openQrModal = (entry) => {
+      previewWindow.classList.add('compact');
+      previewTitle.textContent = `QR · ${entry.name}`;
+      previewRawLink.href = entry.url;
+      previewBody.innerHTML = '';
+
+      const wrapper = document.createElement('div');
+      wrapper.style.textAlign = 'center';
+      const svgMarkup = generateQrSvg(entry.url);
+      if (svgMarkup) {
+        wrapper.innerHTML = svgMarkup;
+        const hint = document.createElement('div');
+        hint.style.cssText = 'font-size:0.65rem;color:var(--text-secondary);margin-top:0.7rem;word-break:break-all;';
+        hint.textContent = entry.url;
+        wrapper.appendChild(hint);
+      } else {
+        wrapper.innerHTML = '<span style="font-size:0.72rem;color:var(--text-secondary);">URL exceeds QR capacity.</span>';
+      }
+      previewBody.appendChild(wrapper);
+      previewModal.classList.add('open');
+    };
+
+    const extractSlugFromUrl = (url) => {
+      try {
+        const clean = url.split('#')[0].split('?')[0];
+        const lastSeg = clean.split('/').pop() || '';
+        const slug = lastSeg.split('.')[0];
+        return slug.length === 8 ? slug : null;
+      } catch (_) {
+        return null;
+      }
+    };
+
+    const openStatsModal = async (entry) => {
+      const slug = entry.slug || extractSlugFromUrl(entry.url);
+      if (!slug) return;
+      previewWindow.classList.add('compact');
+      previewTitle.textContent = `Telemetry · ${slug}`;
+      previewRawLink.href = entry.url;
+      previewBody.innerHTML = '<span style="font-size:0.72rem;color:var(--text-secondary);">Querying SQLite node...</span>';
+      previewModal.classList.add('open');
+
+      try {
+        const res = await fetch(`/stats/${slug}`);
+        if (!res.ok) throw new Error('Expired or burned');
+        const st = await res.json();
+        const table = document.createElement('table');
+        table.className = 'stats-table';
+        const rows = [
+          ['Slug', st.slug],
+          ['Stored Size', formatBytes(st.size)],
+          ['MIME', st.content_type],
+          ['Views', st.max_views ? `${st.views} / ${st.max_views}` : `${st.views}`],
+          ['Album', st.album_id || 'None'],
+          [
+            'Protection',
+            [
+              st.e2ee ? 'Cascade E2EE' : null,
+              st.shamir_threshold ? `Shamir ${st.shamir_threshold}-Key` : null,
+              st.protected ? 'Password' : null,
+              st.burn_after_read ? '1-View Burn' : null
+            ].filter(Boolean).join(' + ') || 'Public'
+          ],
+          ['Time-Lock', st.unlock_at ? new Date(st.unlock_at * 1000).toLocaleString() : 'Unlocked'],
+          ['Expires', st.expires_at ? new Date(st.expires_at * 1000).toLocaleString() : 'Never'],
+          ['Last Access', st.last_accessed_at ? new Date(st.last_accessed_at * 1000).toLocaleString() : 'Never']
+        ];
+        const frag = document.createDocumentFragment();
+        rows.forEach(([k, v]) => {
+          const tr = document.createElement('tr');
+          const td1 = document.createElement('td');
+          const td2 = document.createElement('td');
+          td1.textContent = k;
+          td2.textContent = v;
+          tr.appendChild(td1);
+          tr.appendChild(td2);
+          frag.appendChild(tr);
+        });
+        table.appendChild(frag);
+        previewBody.innerHTML = '';
+        previewBody.appendChild(table);
+      } catch (_) {
+        previewBody.innerHTML = '<span style="font-size:0.72rem;color:var(--danger);">File no longer exists or has been burned.</span>';
+      }
+    };
+
+    const deleteRemoteFile = async (entry, btn) => {
+      const slug = entry.slug || extractSlugFromUrl(entry.url);
+      if (!slug || !entry.deleteKey) return;
+      const prev = btn.textContent;
+      btn.textContent = '..';
+      try {
+        const res = await fetch(`/v/${slug}`, {
+          method: 'DELETE',
+          headers: { 'X-Kura-Delete-Key': entry.deleteKey }
+        });
+        if (res.ok || res.status === 404) {
+          const items = loadVault().filter(i => i.url !== entry.url);
+          localStorage.setItem(VAULT_STORAGE_KEY, JSON.stringify(items));
+          renderVault();
+        } else {
+          btn.textContent = '!';
+          setTimeout(() => { btn.textContent = prev; }, 1200);
+        }
+      } catch (_) {
+        btn.textContent = '!';
+        setTimeout(() => { btn.textContent = prev; }, 1200);
+      }
+    };
+
+    const createAlbumFromVault = async (btn) => {
+      const items = loadVault();
+      const slugs = items
+        .map(i => i.slug || extractSlugFromUrl(i.url))
+        .filter(Boolean);
+      if (slugs.length === 0) return;
+
+      const prev = btn ? btn.textContent : '';
+      if (btn) btn.textContent = '..';
+
+      try {
+        const res = await fetch('/album', {
+          method: 'POST',
+          body: slugs.join('\n')
+        });
+        if (!res.ok) throw new Error('Album creation failed');
+        const albumUrl = (await res.text()).trim();
+        albumBannerLink.href = albumUrl;
+        albumBannerLink.textContent = albumUrl.replace(/^https?:\/\//, '');
+        albumZipLink.href = `${albumUrl}/zip`;
+        albumBanner.classList.add('visible');
+        await copyToClipboard(albumUrl, btn);
+      } catch (_) {
+        if (btn) {
+          btn.textContent = 'Err';
+          setTimeout(() => { btn.textContent = prev; }, 1400);
+        }
+      }
+    };
+
+    document.getElementById('btn-create-album').addEventListener('click', (e) => {
+      createAlbumFromVault(e.currentTarget);
+    });
+
+    albumCopyBtn.addEventListener('click', () => {
+      copyToClipboard(albumBannerLink.href, albumCopyBtn);
+    });
+
+    const isPreviewableUrl = (url) => {
+      const ext = url.split('#')[0].split('?')[0].split('.').pop().toLowerCase();
+      return [
+        'png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'ico',
+        'mp4', 'webm', 'mov', 'mp3', 'wav', 'ogg', 'flac', 'm4a',
+        'pdf', 'txt'
+      ].includes(ext);
+    };
+
+    const openPreviewModal = async (entry) => {
+      previewWindow.classList.remove('compact');
+      previewTitle.textContent = `${entry.name} · ${formatBytes(entry.size)}`;
+      previewRawLink.href = entry.url;
+      previewBody.innerHTML = '<span style="font-size:0.72rem;color:var(--text-secondary);">Loading preview...</span>';
+      previewModal.classList.add('open');
+
+      const ext = entry.url.split('#')[0].split('?')[0].split('.').pop().toLowerCase();
+
+      if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'ico'].includes(ext)) {
+        const img = document.createElement('img');
+        img.src = entry.url;
+        img.alt = entry.name;
+        previewBody.innerHTML = '';
+        previewBody.appendChild(img);
+      } else if (['mp4', 'webm', 'mov'].includes(ext)) {
+        const video = document.createElement('video');
+        video.src = entry.url;
+        video.controls = true;
+        video.autoplay = true;
+        previewBody.innerHTML = '';
+        previewBody.appendChild(video);
+      } else if (['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(ext)) {
+        const audio = document.createElement('audio');
+        audio.src = entry.url;
+        audio.controls = true;
+        previewBody.innerHTML = '';
+        previewBody.appendChild(audio);
+      } else if (ext === 'pdf') {
+        const frame = document.createElement('iframe');
+        frame.src = entry.url;
+        previewBody.innerHTML = '';
+        previewBody.appendChild(frame);
+      } else if (ext === 'txt') {
+        try {
+          const res = await fetch(entry.url);
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const text = await res.text();
+          const pre = document.createElement('pre');
+          pre.textContent = text;
+          previewBody.innerHTML = '';
+          previewBody.appendChild(pre);
+        } catch (_) {
+          previewBody.innerHTML = '<span style="font-size:0.72rem;color:var(--text-secondary);">Direct text preview blocked by CORS or expired.</span>';
+        }
+      }
+    };
+
+    const closePreviewModal = () => {
+      previewModal.classList.remove('open');
+      previewBody.innerHTML = '';
+    };
+
+    previewClose.addEventListener('click', closePreviewModal);
+    previewModal.addEventListener('click', (e) => {
+      if (e.target === previewModal) closePreviewModal();
+    });
+
+    const loadVault = () => {
+      try {
+        const now = Date.now();
+        const raw = JSON.parse(localStorage.getItem(VAULT_STORAGE_KEY) || '[]');
+        return raw.filter(item => !item.expiresAt || item.expiresAt > now);
+      } catch (_) {
+        return [];
+      }
+    };
+
+    const formatVaultLink = (entry, mode) => {
+      const safeName = (entry.name || 'file').replace(/[\[\]<>"]/g, '_');
+      switch (mode) {
+        case 'md': return `[${safeName}](${entry.url})`;
+        case 'html': return `<a href="${entry.url}" target="_blank" rel="noopener noreferrer">${safeName}</a>`;
+        case 'bb': return `[url=${entry.url}]${safeName}[/url]`;
+        default: return entry.url;
+      }
+    };
+
+    const refreshFooterTelemetry = () => {
+      const items = loadVault();
+      const totalVaultBytes = items.reduce((acc, item) => acc + (Number(item.size) || 0), 0);
+      statVaultSummary.textContent = `${items.length} ${items.length === 1 ? 'FILE' : 'FILES'} (${formatBytes(totalVaultBytes)})`;
+
+      const daily = loadDailyTelemetry();
+      statDailyTraffic.textContent = `${daily.uploads} ${daily.uploads === 1 ? 'UPLOAD' : 'UPLOADS'} · ${formatBytes(daily.bytes)}`;
+      statCasSaved.textContent = formatBytes(daily.casSaved);
+    };
+
+    // Single-pass DocumentFragment rendering for instant Vault DOM updates
+    const renderVault = () => {
+      const items = loadVault();
+      vaultCount.textContent = items.length;
+      refreshFooterTelemetry();
+
+      if (items.length === 0) {
+        albumBanner.classList.remove('visible');
+        vaultList.innerHTML = `
+          <div class="vault-empty">
+            <span style="color:var(--text-secondary);font-weight:500;">EMPTY VAULT</span>
+            <span>Uploads appear here with instant copy, QR, Shamir shares &amp; delete controls.</span>
+          </div>
+        `;
+        return;
+      }
+
+      const frag = document.createDocumentFragment();
+
+      items.forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'vault-row';
+
+        const top = document.createElement('div');
+        top.className = 'vault-row-top';
+
+        const link = document.createElement('a');
+        link.href = item.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.className = 'vault-link';
+        link.textContent = item.name;
+        link.title = item.url;
+
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'btn-action';
+        copyBtn.textContent = 'Copy';
+        copyBtn.addEventListener('click', () => {
+          copyToClipboard(formatVaultLink(item, fmtSelect.value), copyBtn);
+        });
+
+        top.appendChild(link);
+        top.appendChild(copyBtn);
+
+        const bottom = document.createElement('div');
+        bottom.className = 'vault-row-bottom';
+
+        const sub = document.createElement('div');
+        sub.className = 'vault-sub';
+        const tags = [formatBytes(item.size)];
+        if (item.paddedSize && item.paddedSize > item.size) tags.push(`Pad:${formatBytes(item.paddedSize)}`);
+        if (item.p2p) tags.push('P2P');
+        if (item.note) tags.push('Note');
+        if (item.expiry && item.expiry !== 'never') tags.push(item.expiry);
+        if (item.timelock) tags.push(`Lock:${item.timelock}`);
+        if (item.shamirM) tags.push(`SSS:${item.shamirM}/${item.shamirShares?.length || 0}`);
+        else if (item.e2ee) tags.push('E2EE-v2');
+        if (item.protected) tags.push('Pass');
+        if (item.duress) tags.push('Duress');
+        if (item.dedup) tags.push('Dedup');
+        sub.textContent = tags.join(' · ');
+
+        const secActions = document.createElement('div');
+        secActions.className = 'vault-secondary-actions';
+
+        if (item.shamirShares && item.shamirShares.length) {
+          const sharesBtn = document.createElement('button');
+          sharesBtn.type = 'button';
+          sharesBtn.className = 'btn-ghost';
+          sharesBtn.style.color = 'var(--success)';
+          sharesBtn.textContent = 'Shares';
+          sharesBtn.addEventListener('click', () => openShamirModal(item));
+          secActions.appendChild(sharesBtn);
+        }
+
+        if (!item.protected && !item.e2ee && !item.p2p && !item.timelock && item.expiry !== '1v' && isPreviewableUrl(item.url)) {
+          const prevBtn = document.createElement('button');
+          prevBtn.type = 'button';
+          prevBtn.className = 'btn-ghost';
+          prevBtn.textContent = 'View';
+          prevBtn.addEventListener('click', () => openPreviewModal(item));
+          secActions.appendChild(prevBtn);
+        }
+
+        const qrBtn = document.createElement('button');
+        qrBtn.type = 'button';
+        qrBtn.className = 'btn-ghost';
+        qrBtn.textContent = 'QR';
+        qrBtn.addEventListener('click', () => openQrModal(item));
+        secActions.appendChild(qrBtn);
+
+        if (!item.p2p) {
+          const statsBtn = document.createElement('button');
+          statsBtn.type = 'button';
+          statsBtn.className = 'btn-ghost';
+          statsBtn.textContent = 'Stats';
+          statsBtn.addEventListener('click', () => openStatsModal(item));
+          secActions.appendChild(statsBtn);
+        }
+
+        if (item.deleteKey) {
+          const delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.className = 'btn-ghost btn-danger';
+          delBtn.textContent = '×';
+          delBtn.title = 'Delete from server';
+          delBtn.addEventListener('click', () => deleteRemoteFile(item, delBtn));
+          secActions.appendChild(delBtn);
+        }
+
+        bottom.appendChild(sub);
+        bottom.appendChild(secActions);
+
+        row.appendChild(top);
+        row.appendChild(bottom);
+        frag.appendChild(row);
+      });
+
+      vaultList.replaceChildren(frag);
+    };
+
+    const computeExpiryTimestamp = (policy) => {
+      const now = Date.now();
+      switch (policy) {
+        case '1h': return now + 3600 * 1000;
+        case '24h': return now + 86400 * 1000;
+        case '7d':
+        case '1v':
+        case '5v':
+        case '10v': return now + 604800 * 1000;
+        default: return null;
+      }
+    };
+
+    const saveToVault = (entry) => {
+      const items = loadVault();
+      const filtered = items.filter(i => i.url !== entry.url);
+      filtered.unshift(entry);
+      localStorage.setItem(VAULT_STORAGE_KEY, JSON.stringify(filtered.slice(0, 30)));
+      renderVault();
+    };
+
+    document.getElementById('btn-copy-all').addEventListener('click', (e) => {
+      const items = loadVault();
+      if (!items.length) return;
+      const mode = fmtSelect.value;
+      const joined = items.map(i => formatVaultLink(i, mode)).join('\n');
+      copyToClipboard(joined, e.currentTarget);
+    });
+
+    document.getElementById('btn-purge-vault').addEventListener('click', () => {
+      localStorage.removeItem(VAULT_STORAGE_KEY);
+      renderVault();
+    });
+
+    // 60fps requestAnimationFrame coalesced Batch HUD updater
+    const updateBatchHud = () => {
+      if (batchState.rafPending) return;
+      batchState.rafPending = true;
+      requestAnimationFrame(() => {
+        batchState.rafPending = false;
+        if (batchState.totalFiles === 0) {
+          batchHud.classList.remove('visible');
+          return;
+        }
+        batchHud.classList.add('visible');
+        let sumLoaded = 0;
+        for (const v of batchState.fileLoaded.values()) sumLoaded += v;
+        const pct = batchState.totalBytes > 0
+          ? Math.min(100, Math.round((sumLoaded / batchState.totalBytes) * 100))
+          : 100;
+        const elapsed = (performance.now() - batchState.startTime) / 1000;
+        const speed = elapsed > 0 ? formatBytes(sumLoaded / elapsed) + '/s' : '--';
+
+        batchHudLeft.textContent = `Batch: ${batchState.doneFiles}/${batchState.totalFiles} (${pct}%)`;
+        batchHudRight.textContent = `${formatBytes(sumLoaded)} / ${formatBytes(batchState.totalBytes)} · ${speed}`;
+        batchHudBar.style.width = `${pct}%`;
+      });
+    };
+
+    const enqueueFiles = (fileList, options = {}) => {
+      const files = Array.from(fileList);
+      if (!files.length) return;
+      if (batchState.doneFiles === batchState.totalFiles) {
+        batchState.totalFiles = 0;
+        batchState.doneFiles = 0;
+        batchState.totalBytes = 0;
+        batchState.fileLoaded.clear();
+        batchState.startTime = performance.now();
+      }
+      queueSection.classList.add('visible');
+      files.forEach(file => {
+        const fileId = Symbol();
+        batchState.totalFiles += 1;
+        batchState.totalBytes += file.size;
+        batchState.fileLoaded.set(fileId, 0);
+        updateBatchHud();
+        processSingleFile(file, fileId, options);
+      });
+    };
+
+    const startP2pWormholeSender = async ({
+      rawFile,
+      fileId,
+      useE2ee,
+      statusEl,
+      hashEl,
+      telemetryEl,
+      progressEl,
+      abortBtn,
+      itemEl,
+      markBatchDone
+    }) => {
+      let aborted = false;
+      let pc = null;
+
+      abortBtn.onclick = () => {
+        aborted = true;
+        if (pc) pc.close();
+        statusEl.textContent = 'P2P Canceled';
+        statusEl.style.color = 'var(--warning)';
+        progressEl.style.width = '0%';
+        abortBtn.remove();
+        markBatchDone(0);
+      };
+
+      try {
+        statusEl.textContent = 'Init P2P Room...';
+        let cryptoKey = null;
+        let hashKey = '';
+
+        if (useE2ee) {
+          const rawKey = crypto.getRandomValues(new Uint8Array(32));
+          cryptoKey = await crypto.subtle.importKey('raw', rawKey, 'AES-GCM', false, ['encrypt']);
+          hashKey = bytesToBase64Url(rawKey);
+          rawKey.fill(0);
+        }
+
+        const initRes = await fetch('/wormhole/init', {
+          method: 'POST',
+          headers: {
+            'X-Kura-Filename': rawFile.name,
+            'X-Kura-Size': String(rawFile.size),
+            'X-Kura-E2EE': useE2ee ? '1' : '0'
+          }
+        });
+        if (!initRes.ok) throw new Error('Wormhole init failed');
+        const { room_id, url, sender_token } = await initRes.json();
+        const shareUrl = useE2ee ? `${url}#${hashKey}` : url;
+        const sigHeaders = sender_token ? { 'X-Kura-Wormhole-Token': sender_token } : {};
+
+        hashEl.textContent = `P2P Room: ${room_id} · Keep tab open`;
+        statusEl.textContent = 'Waiting for peer...';
+
+        const actionContainer = itemEl.querySelector('.queue-header div');
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'btn-action';
+        copyBtn.textContent = 'Copy Link';
+        copyBtn.onclick = () => copyToClipboard(shareUrl, copyBtn);
+        actionContainer.appendChild(copyBtn);
+
+        saveToVault({
+          name: rawFile.name,
+          size: rawFile.size,
+          url: shareUrl,
+          p2p: true,
+          e2ee: useE2ee,
+          expiry: '30m P2P',
+          expiresAt: Date.now() + 1800 * 1000,
+          ts: Date.now()
+        });
+
+        pc = new RTCPeerConnection({
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun.cloudflare.com:3478' }
+          ]
+        });
+        const dc = pc.createDataChannel('kura-p2p');
+        dc.binaryType = 'arraybuffer';
+        dc.bufferedAmountLowThreshold = 256 * 1024;
+
+        pc.onicecandidate = e => {
+          if (e.candidate && !aborted) {
+            fetch(`/wormhole/${room_id}/signal?role=sender&kind=ice`, {
+              method: 'POST',
+              headers: sigHeaders,
+              body: JSON.stringify(e.candidate)
+            }).catch(() => {});
+          }
+        };
+
+        dc.onopen = async () => {
+          statusEl.textContent = 'Peer connected · Streaming...';
+          const chunkSize = 64 * 1024;
+          let offset = 0;
+          const t0 = performance.now();
+
+          while (offset < rawFile.size && !aborted) {
+            if (dc.bufferedAmount > 1024 * 1024) {
+              await new Promise(r => { dc.onbufferedamountlow = r; setTimeout(r, 50); });
+            }
+            const slice = await rawFile.slice(offset, offset + chunkSize).arrayBuffer();
+            let payload = slice;
+            if (cryptoKey) {
+              const iv = crypto.getRandomValues(new Uint8Array(12));
+              const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, slice);
+              const packed = new Uint8Array(12 + ct.byteLength);
+              packed.set(iv, 0);
+              packed.set(new Uint8Array(ct), 12);
+              payload = packed.buffer;
+            }
+            dc.send(payload);
+            offset += slice.byteLength;
+            batchState.fileLoaded.set(fileId, offset);
+            updateBatchHud();
+
+            const pct = Math.min(100, Math.round((offset / rawFile.size) * 100));
+            const elapsed = (performance.now() - t0) / 1000;
+            const speed = elapsed > 0 ? formatBytes(offset / elapsed) + '/s' : '--';
+            progressEl.style.width = `${pct}%`;
+            statusEl.textContent = `P2P ${pct}%`;
+            telemetryEl.textContent = `${speed}`;
+          }
+
+          if (!aborted) {
+            dc.send('EOF');
+            abortBtn.remove();
+            progressEl.style.width = '0%';
+            statusEl.textContent = 'P2P Delivered';
+            statusEl.style.color = 'var(--success)';
+            markBatchDone(rawFile.size);
+            recordDailyUpload(rawFile.size, false);
+          }
+        };
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await fetch(`/wormhole/${room_id}/signal?role=sender&kind=offer`, {
+          method: 'POST',
+          headers: sigHeaders,
+          body: JSON.stringify(pc.localDescription)
+        });
+
+        let rev = 0;
+        let addedIce = 0;
+        while (!aborted) {
+          const stRes = await fetch(`/wormhole/${room_id}/state?since=${rev}&wait_ms=8000`);
+          if (!stRes.ok) throw new Error('P2P room expired');
+          const st = await stRes.json();
+          rev = st.revision;
+          if (st.answer && !pc.currentRemoteDescription) {
+            await pc.setRemoteDescription(new RTCSessionDescription(st.answer));
+          }
+          if (pc.currentRemoteDescription && st.receiver_ice) {
+            while (addedIce < st.receiver_ice.length) {
+              try { await pc.addIceCandidate(new RTCIceCandidate(st.receiver_ice[addedIce])); } catch (_) {}
+              addedIce++;
+            }
+          }
+          if (dc.readyState === 'open' || dc.readyState === 'closed') break;
+        }
+      } catch (err) {
+        if (aborted) return;
+        abortBtn.remove();
+        statusEl.textContent = `P2P Failed (${err.message || 'Error'})`;
+        statusEl.style.color = 'var(--danger)';
+        markBatchDone(0);
+      }
+    };
+
+    const uploadResumableChunked = async ({
+      processedFile,
+      rawFile,
+      fileId,
+      clientHash,
+      selectedExpiry,
+      selectedTimelock,
+      selectedPassword,
+      selectedDuress,
+      useE2ee,
+      e2eeKeyFragment,
+      shamirShares,
+      shamirM,
+      statusEl,
+      telemetryEl,
+      progressEl,
+      abortBtn,
+      itemEl,
+      markBatchDone
+    }) => {
+      let aborted = false;
+      const activeController = new AbortController();
+
+      abortBtn.addEventListener('click', () => {
+        aborted = true;
+        activeController.abort();
+        statusEl.textContent = 'Canceled';
+        statusEl.style.color = 'var(--warning)';
+        progressEl.style.width = '0%';
+        abortBtn.remove();
+        markBatchDone(0);
+      });
+
+      const buildHeaders = (powToken = null) => {
+        const h = {
+          'X-Content-Sha256': clientHash,
+          'X-Kura-Size': String(processedFile.size),
+          'X-Kura-Filename': processedFile.name
+        };
+        if (selectedExpiry && selectedExpiry !== 'never') h['X-Kura-Expire'] = selectedExpiry;
+        if (selectedTimelock) h['X-Kura-Timelock'] = selectedTimelock;
+        if (shamirM) h['X-Kura-Shamir-M'] = String(shamirM);
+        if (selectedPassword.length > 0) h['X-Kura-Password'] = selectedPassword;
+        if (selectedDuress.length > 0) h['X-Kura-Duress-Password'] = selectedDuress;
+        if (useE2ee) h['X-Kura-E2EE'] = '1';
+        if (powToken) h['X-Kura-Pow'] = powToken;
+        return h;
+      };
+
+      try {
+        statusEl.textContent = 'Init session...';
+        let initRes = await fetch('/upload/resumable/init', {
+          method: 'POST',
+          headers: buildHeaders(),
+          signal: activeController.signal
+        });
+
+        if (initRes.status === 429 && initRes.headers.get('X-Kura-Pow-Challenge')) {
+          statusEl.textContent = 'Solving PoW...';
+          const challenge = initRes.headers.get('X-Kura-Pow-Challenge');
+          const diff = Number(initRes.headers.get('X-Kura-Pow-Difficulty') || 16);
+          const solved = await solvePowChallenge(challenge, diff);
+          if (solved) {
+            initRes = await fetch('/upload/resumable/init', {
+              method: 'POST',
+              headers: buildHeaders(solved),
+              signal: activeController.signal
+            });
+          }
+        }
+
+        if (!initRes.ok) {
+          throw new Error((await initRes.text()).trim() || `HTTP ${initRes.status}`);
+        }
+
+        const session = await initRes.json();
+        const { session_id, part_size, total_parts, uploaded_parts } = session;
+        const doneSet = new Set(uploaded_parts || []);
+        const startTime = performance.now();
+
+        for (let partNum = 1; partNum <= total_parts; partNum++) {
+          if (aborted) return;
+          const startByte = (partNum - 1) * part_size;
+          const endByte = Math.min(processedFile.size, partNum * part_size);
+
+          if (doneSet.has(partNum)) {
+            batchState.fileLoaded.set(fileId, Math.min(rawFile.size, endByte));
+            updateBatchHud();
+            progressEl.style.width = `${Math.round((endByte / processedFile.size) * 100)}%`;
+            continue;
+          }
+
+          const blobPart = processedFile.slice(startByte, endByte);
+          let partUploaded = false;
+
+          for (let attempt = 0; attempt < 3 && !partUploaded; attempt++) {
+            if (aborted) return;
+            statusEl.textContent = `Part ${partNum}/${total_parts}${attempt > 0 ? ' (retry)' : ''}`;
+            const partRes = await fetch(`/upload/resumable/${session_id}/${partNum}`, {
+              method: 'PUT',
+              body: blobPart,
+              signal: activeController.signal
+            });
+            if (partRes.ok) {
+              partUploaded = true;
+            } else if (attempt === 2) {
+              throw new Error(`part_${partNum}_failed`);
+            }
+          }
+
+          batchState.fileLoaded.set(fileId, Math.min(rawFile.size, endByte));
+          updateBatchHud();
+          const pct = Math.round((endByte / processedFile.size) * 100);
+          const elapsed = (performance.now() - startTime) / 1000;
+          const speed = elapsed > 0 ? formatBytes(endByte / elapsed) + '/s' : '--';
+          progressEl.style.width = `${pct}%`;
+          telemetryEl.textContent = `${pct}% · ${speed}`;
+        }
+
+        statusEl.textContent = 'Assembling R2...';
+        const compHeaders = shamirM ? { 'X-Kura-Shamir-M': String(shamirM) } : {};
+        const compRes = await fetch(`/upload/resumable/${session_id}/complete`, {
+          method: 'POST',
+          headers: compHeaders,
+          signal: activeController.signal
+        });
+
+        abortBtn.remove();
+        progressEl.style.width = '0%';
+        markBatchDone(rawFile.size);
+
+        if (!compRes.ok) {
+          throw new Error((await compRes.text()).trim() || `HTTP ${compRes.status}`);
+        }
+
+        const baseUrl = (await compRes.text()).trim();
+        const finalUrl = e2eeKeyFragment ? `${baseUrl}#${e2eeKeyFragment}` : baseUrl;
+        const deleteKey = compRes.headers.get('X-Kura-Delete-Key') || null;
+        const slug = compRes.headers.get('X-Kura-Slug') || extractSlugFromUrl(baseUrl);
+        const isDedup = compRes.headers.get('X-Kura-Deduplicated') === '1';
+
+        statusEl.textContent = session.resumed ? 'Resumed & Done' : (isDedup ? 'Deduped' : 'Done');
+        statusEl.style.color = 'var(--success)';
+
+        recordDailyUpload(rawFile.size, isDedup);
+
+        const entry = {
+          name: rawFile.name,
+          size: rawFile.size,
+          paddedSize: processedFile.size,
+          hash: clientHash,
+          url: finalUrl,
+          slug,
+          deleteKey,
+          dedup: isDedup,
+          expiry: selectedExpiry,
+          timelock: selectedTimelock || null,
+          expiresAt: computeExpiryTimestamp(selectedExpiry),
+          protected: selectedPassword.length > 0,
+          duress: selectedDuress.length > 0,
+          e2ee: useE2ee,
+          shamirM,
+          shamirShares,
+          ts: Date.now()
+        };
+
+        const actionContainer = itemEl.querySelector('.queue-header div');
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'btn-action';
+        copyBtn.textContent = 'Copy';
+        copyBtn.addEventListener('click', () => copyToClipboard(finalUrl, copyBtn));
+        actionContainer.appendChild(copyBtn);
+
+        saveToVault(entry);
+        if (shamirShares && shamirShares.length) openShamirModal(entry);
+      } catch (err) {
+        if (aborted) return;
+        abortBtn.remove();
+        progressEl.style.width = '0%';
+        statusEl.textContent = `Failed (${err.message || 'Error'})`;
+        statusEl.style.color = 'var(--danger)';
+        markBatchDone(0);
+      }
+    };
+
+    const processSingleFile = async (rawFile, fileId, options = {}) => {
+      const isSecretNote = Boolean(options.isSecretNote);
+      const selectedExpiry = isSecretNote && expirySelect.value === 'never' ? '1v' : expirySelect.value;
+      const selectedTimelock = timelockSelect.value;
+      const selectedShamir = shamirSelect.value;
+      const selectedPassword = passwordInput.value.trim();
+      const selectedDuress = duressInput.value.trim();
+      const usePad = padEnabled;
+      const useE2ee = isSecretNote || Boolean(selectedShamir) || usePad || e2eeEnabled;
+
+      const itemEl = document.createElement('div');
+      itemEl.className = 'queue-item';
+      itemEl.innerHTML = `
+        <div class="queue-header">
+          <span class="queue-filename"></span>
+          <div style="display:flex;align-items:center;gap:0.35rem;">
+            <span class="queue-status">Preparing...</span>
+            <button type="button" class="btn-action btn-abort">Cancel</button>
+          </div>
+        </div>
+        <div class="queue-meta">
+          <span class="queue-hash">Hashing...</span>
+          <span class="queue-telemetry">${formatBytes(rawFile.size)}</span>
+        </div>
+        <div class="queue-progress"></div>
+      `;
+
+      itemEl.querySelector('.queue-filename').textContent = rawFile.name;
+      queueSection.prepend(itemEl);
+
+      const statusEl = itemEl.querySelector('.queue-status');
+      const hashEl = itemEl.querySelector('.queue-hash');
+      const telemetryEl = itemEl.querySelector('.queue-telemetry');
+      const progressEl = itemEl.querySelector('.queue-progress');
+      const abortBtn = itemEl.querySelector('.btn-abort');
+
+      const markBatchDone = (finalBytes) => {
+        batchState.fileLoaded.set(fileId, finalBytes);
+        batchState.doneFiles += 1;
+        updateBatchHud();
+      };
+
+      if (rawFile.size === 0) {
+        statusEl.textContent = 'Empty file';
+        statusEl.style.color = 'var(--danger)';
+        abortBtn.remove();
+        markBatchDone(0);
+        return;
+      }
+
+      if (p2pEnabled || rawFile.size > MAX_BYTES) {
+        return startP2pWormholeSender({
+          rawFile,
+          fileId,
+          useE2ee,
+          statusEl,
+          hashEl,
+          telemetryEl,
+          progressEl,
+          abortBtn,
+          itemEl,
+          markBatchDone
+        });
+      }
+
+      if (selectedPassword.length > 0 && selectedDuress.length > 0 && selectedPassword === selectedDuress) {
+        statusEl.textContent = 'Duress == Password';
+        statusEl.style.color = 'var(--danger)';
+        abortBtn.remove();
+        markBatchDone(0);
+        return;
+      }
+
+      let processedFile = await scrubImageMetadata(rawFile);
+      let e2eeKeyFragment = null;
+      let shamirShares = null;
+      let shamirM = null;
+
+      if (useE2ee) {
+        statusEl.textContent = usePad ? 'Padding & Encrypting...' : 'Cascade Encrypting...';
+        const encResult = await encryptFileE2ee(processedFile, isSecretNote, usePad, selectedShamir);
+        processedFile = encResult.encryptedFile;
+        e2eeKeyFragment = encResult.hashKey;
+        shamirShares = encResult.shamirShares;
+        shamirM = encResult.shamirM;
+      }
+
+      const clientHash = await computeClientSha256(processedFile);
+      if (clientHash) {
+        hashEl.textContent = `SHA-256: ${clientHash.slice(0, 12)}…`;
+      }
+
+      if (processedFile.size > RESUMABLE_THRESHOLD && clientHash) {
+        return uploadResumableChunked({
+          processedFile,
+          rawFile,
+          fileId,
+          clientHash,
+          selectedExpiry,
+          selectedTimelock,
+          selectedPassword,
+          selectedDuress,
+          useE2ee,
+          e2eeKeyFragment,
+          shamirShares,
+          shamirM,
+          statusEl,
+          telemetryEl,
+          progressEl,
+          abortBtn,
+          itemEl,
+          markBatchDone
+        });
+      }
+
+      const sendViaXhr = (powToken = null) => {
+        const xhr = new XMLHttpRequest();
+        const startTime = performance.now();
+        let lastUiTick = 0;
+
+        abortBtn.onclick = () => {
+          xhr.abort();
+          statusEl.textContent = 'Canceled';
+          statusEl.style.color = 'var(--warning)';
+          progressEl.style.width = '0%';
+          abortBtn.remove();
+          markBatchDone(0);
+        };
+
+        // Zero-Multipart-Overhead Direct Binary Stream via PUT /upload/{filename}
+        const safeName = encodeURIComponent(processedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_'));
+        xhr.open('PUT', `/upload/${safeName}`, true);
+        if (clientHash) xhr.setRequestHeader('X-Content-Sha256', clientHash);
+        if (selectedExpiry && selectedExpiry !== 'never') xhr.setRequestHeader('X-Kura-Expire', selectedExpiry);
+        if (selectedTimelock) xhr.setRequestHeader('X-Kura-Timelock', selectedTimelock);
+        if (shamirM) xhr.setRequestHeader('X-Kura-Shamir-M', String(shamirM));
+        if (selectedPassword.length > 0) xhr.setRequestHeader('X-Kura-Password', selectedPassword);
+        if (selectedDuress.length > 0) xhr.setRequestHeader('X-Kura-Duress-Password', selectedDuress);
+        if (useE2ee) xhr.setRequestHeader('X-Kura-E2EE', '1');
+        if (powToken) xhr.setRequestHeader('X-Kura-Pow', powToken);
+
+        xhr.upload.onprogress = (e) => {
+          if (!e.lengthComputable) return;
+          batchState.fileLoaded.set(fileId, Math.min(rawFile.size, e.loaded));
+          updateBatchHud();
+
+          const now = performance.now();
+          if (e.loaded < e.total && now - lastUiTick < 32) return;
+          lastUiTick = now;
+
+          const pct = Math.round((e.loaded / e.total) * 100);
+          const elapsed = (now - startTime) / 1000;
+          const speed = elapsed > 0 ? formatBytes(e.loaded / elapsed) + '/s' : '--';
+          const remainingBytes = e.total - e.loaded;
+          const eta = (elapsed > 0 && e.loaded > 0)
+            ? Math.ceil(remainingBytes / (e.loaded / elapsed)) + 's'
+            : '--';
+
+          progressEl.style.width = `${pct}%`;
+
+          if (e.loaded === e.total) {
+            statusEl.textContent = 'Finalizing...';
+            telemetryEl.textContent = formatBytes(processedFile.size);
+          } else {
+            statusEl.textContent = `${pct}%`;
+            telemetryEl.textContent = `${speed} · ${eta}`;
+          }
+        };
+
+        xhr.onload = async () => {
+          const powChallenge = xhr.getResponseHeader('X-Kura-Pow-Challenge');
+          if (xhr.status === 429 && powChallenge && !powToken) {
+            statusEl.textContent = 'Solving PoW...';
+            const diff = Number(xhr.getResponseHeader('X-Kura-Pow-Difficulty') || 16);
+            const solved = await solvePowChallenge(powChallenge, diff);
+            if (solved) {
+              return sendViaXhr(solved);
+            }
+          }
+
+          abortBtn.remove();
+          progressEl.style.width = '0%';
+          markBatchDone(rawFile.size);
+
+          if (xhr.status >= 200 && xhr.status < 300) {
+            const baseUrl = xhr.responseText.trim();
+            const finalUrl = e2eeKeyFragment ? `${baseUrl}#${e2eeKeyFragment}` : baseUrl;
+            const deleteKey = xhr.getResponseHeader('X-Kura-Delete-Key') || null;
+            const slug = xhr.getResponseHeader('X-Kura-Slug') || extractSlugFromUrl(baseUrl);
+            const isDedup = xhr.getResponseHeader('X-Kura-Deduplicated') === '1';
+
+            statusEl.textContent = isDedup ? 'Deduped' : 'Done';
+            statusEl.style.color = 'var(--success)';
+
+            recordDailyUpload(rawFile.size, isDedup);
+
+            const entry = {
+              name: rawFile.name,
+              size: rawFile.size,
+              paddedSize: processedFile.size,
+              hash: clientHash,
+              url: finalUrl,
+              slug,
+              deleteKey,
+              dedup: isDedup,
+              note: isSecretNote,
+              expiry: selectedExpiry,
+              timelock: selectedTimelock || null,
+              expiresAt: computeExpiryTimestamp(selectedExpiry),
+              protected: selectedPassword.length > 0,
+              duress: selectedDuress.length > 0,
+              e2ee: useE2ee,
+              shamirM,
+              shamirShares,
+              ts: Date.now()
+            };
+
+            const actionContainer = itemEl.querySelector('.queue-header div');
+            const copyBtn = document.createElement('button');
+            copyBtn.type = 'button';
+            copyBtn.className = 'btn-action';
+            copyBtn.textContent = 'Copy';
+            copyBtn.addEventListener('click', () => copyToClipboard(finalUrl, copyBtn));
+            actionContainer.appendChild(copyBtn);
+
+            saveToVault(entry);
+            if (shamirShares && shamirShares.length) openShamirModal(entry);
+          } else {
+            const errCode = xhr.responseText.trim() || `HTTP ${xhr.status}`;
+            statusEl.textContent = `Failed (${errCode})`;
+            statusEl.style.color = 'var(--danger)';
+          }
+        };
+
+        xhr.onerror = () => {
+          abortBtn.remove();
+          progressEl.style.width = '0%';
+          statusEl.textContent = 'Network error';
+          statusEl.style.color = 'var(--danger)';
+          markBatchDone(0);
+        };
+
+        xhr.send(processedFile);
+      };
+
+      sendViaXhr();
+    };
+
+    let dragCounter = 0;
+    window.addEventListener('dragenter', (e) => {
+      if (!e.dataTransfer?.types?.includes('Files')) return;
+      e.preventDefault();
+      dragCounter++;
+      document.body.classList.add('dragging-file');
+      consoleFrame.classList.add('global-dragover');
+    });
+
+    window.addEventListener('dragover', (e) => {
+      if (!e.dataTransfer?.types?.includes('Files')) return;
+      e.preventDefault();
+    });
+
+    window.addEventListener('dragleave', (e) => {
+      if (!e.dataTransfer?.types?.includes('Files')) return;
+      e.preventDefault();
+      dragCounter = Math.max(0, dragCounter - 1);
+      if (dragCounter === 0) {
+        document.body.classList.remove('dragging-file');
+        consoleFrame.classList.remove('global-dragover');
+      }
+    });
+
+    window.addEventListener('drop', (e) => {
+      if (!e.dataTransfer?.types?.includes('Files')) return;
+      e.preventDefault();
+      dragCounter = 0;
+      document.body.classList.remove('dragging-file');
+      consoleFrame.classList.remove('global-dragover');
+      dropzone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        enqueueFiles(e.dataTransfer.files);
+      }
+    });
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        fileInput.click();
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        enqueueFiles(e.target.files);
+        fileInput.value = '';
+      }
+    });
+
+    pasteTextarea.addEventListener('input', () => {
+      const bytes = new Blob([pasteTextarea.value]).size;
+      pasteByteCounter.textContent = `${formatBytes(bytes)} · UTF-8`;
+    });
+
+    const deployTextPayload = (asSecretNote = false) => {
+      const content = pasteTextarea.value;
+      if (!content.trim()) return;
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const filename = asSecretNote ? `secret_${Date.now()}.note` : `snippet_${Date.now()}.txt`;
+      const file = new File([blob], filename, { type: 'text/plain' });
+      pasteTextarea.value = '';
+      pasteByteCounter.textContent = '0 B · UTF-8';
+      enqueueFiles([file], { isSecretNote: asSecretNote });
+    };
+
+    btnDeployPaste.addEventListener('click', () => deployTextPayload(false));
+    btnDeployNote.addEventListener('click', () => deployTextPayload(true));
+    pasteTextarea.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        deployTextPayload(false);
+      }
+    });
+
+    window.addEventListener('paste', (e) => {
+      if (
+        document.activeElement === pasteTextarea ||
+        document.activeElement === passwordInput ||
+        document.activeElement === duressInput ||
+        document.activeElement === cmdInput
+      ) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const pastedFiles = [];
+      for (const item of items) {
+        if (item.kind === 'file') {
+          const f = item.getAsFile();
+          if (f) pastedFiles.push(f);
+        }
+      }
+
+      if (pastedFiles.length > 0) {
+        consoleFrame.classList.add('paste-flash');
+        setTimeout(() => consoleFrame.classList.remove('paste-flash'), 250);
+        enqueueFiles(pastedFiles);
+      }
+    });
+
+    // Stage 1 -> Stage 2: System Specifications Modal + Spotlight Walkthrough
+    const TOUR_STEPS = [
+      {
+        el: '#dropzone',
+        cat: 'UPLOAD',
+        title: 'File Dropzone & Auto P2P',
+        desc: 'Drop files anywhere on the page. Files up to 10 MiB stream directly via zero-overhead binary PUT; 10–200 MiB use resumable chunks; files over 200 MiB automatically switch to WebRTC P2P.',
+        prep: () => switchTab('view-drop')
+      },
+      {
+        el: '#mode-tabs',
+        cat: 'MODES',
+        title: 'Input Mode Selector',
+        desc: 'Switch between standard file uploads (Files), text & one-time notes (Text), and command-line snippets (CLI).',
+        prep: () => switchTab('view-drop')
+      },
+      {
+        el: '#expiry-select',
+        cat: 'EXPIRATION',
+        title: 'Retention & View Limits',
+        desc: 'Set an automatic expiration timer (1h, 24h, 7d) or delete the file after a fixed number of downloads (1v, 5v, 10v).',
+        prep: () => switchTab('view-drop')
+      },
+      {
+        el: '#timelock-select',
+        cat: 'TIME-LOCK',
+        title: 'Future Release Time-Lock',
+        desc: 'Locks the file on the server so it cannot be downloaded or decrypted until the specified time delay (15m, 1h, 6h, 24h, 7d) has elapsed.',
+        prep: () => switchTab('view-drop')
+      },
+      {
+        el: '#shamir-select',
+        cat: 'SPLIT CUSTODY',
+        title: 'Shamir M-of-N Secret Sharing',
+        desc: 'Splits the 256-bit encryption key into N mathematical shares over GF(256). The URL contains no key; any M shares must be entered at the gate to unlock.',
+        prep: () => switchTab('view-drop')
+      },
+      {
+        el: '#password-input',
+        cat: 'SECURITY',
+        title: 'Password Protection',
+        desc: 'Protects your upload with a password hashed using 100,000 rounds of PBKDF2-HMAC-SHA256 plus a hybrid memory matrix.',
+        prep: () => switchTab('view-drop')
+      },
+      {
+        el: '#duress-input',
+        cat: 'SECURITY',
+        title: 'Secondary Wipe Code (Duress)',
+        desc: 'Appears when a password is set. Entering this secondary code on the download page immediately deletes the file and its encryption keys.',
+        prep: () => { switchTab('view-drop'); duressInput.classList.add('visible'); }
+      },
+      {
+        el: '#toggle-e2ee',
+        cat: 'ENCRYPTION',
+        title: 'Cascade End-to-End Encryption',
+        desc: 'Encrypts files in your browser using a vectorized dual-cipher cascade (32-bit ChaCha20 + AES-256-GCM) with HKDF subkeys before uploading.',
+        prep: () => { if (!passwordInput.value) duressInput.classList.remove('visible'); }
+      },
+      {
+        el: '#toggle-pad',
+        cat: 'TRAFFIC PRIVACY',
+        title: 'Discrete Bucket Padding (PAD)',
+        desc: 'Pads encrypted files with random bytes to fixed bucket sizes (64 KiB, 512 KiB, 2 MiB, 8 MiB...) to hide exact file sizes from network observers.',
+        prep: () => {}
+      },
+      {
+        el: '#toggle-exif',
+        cat: 'PRIVACY',
+        title: 'EXIF Metadata Removal',
+        desc: 'Automatically strips camera details and GPS coordinates from JPEG, PNG, and WebP images before uploading.',
+        prep: () => {}
+      },
+      {
+        el: '#toggle-p2p',
+        cat: 'TRANSFER',
+        title: 'Direct WebRTC P2P Mode',
+        desc: 'Streams files of any size directly from your browser to the recipient over WebRTC without storing data on the server.',
+        prep: () => {}
+      },
+      {
+        el: '#btn-deploy-note',
+        cat: 'NOTES',
+        title: 'One-Time Secret Note',
+        desc: 'Encrypts text into a 1-view note. When opened, the recipient can copy the text and clear it from memory in one click.',
+        prep: () => switchTab('view-paste')
+      },
+      {
+        el: '#btn-deploy-paste',
+        cat: 'TEXT',
+        title: 'Text & Code Upload',
+        desc: 'Uploads plain text or code as a .txt file with built-in syntax highlighting and line numbers.',
+        prep: () => switchTab('view-paste')
+      },
+      {
+        el: '#view-cli',
+        cat: 'TERMINAL',
+        title: 'Command-Line Usage',
+        desc: 'Upload directly from your terminal using curl or the lightweight kura.sh shell script.',
+        prep: () => switchTab('view-cli')
+      },
+      {
+        el: '#vault-section',
+        cat: 'HISTORY',
+        title: 'Local Upload Vault',
+        desc: 'Keeps track of your recent uploads, Shamir key shares, and deletion keys in local browser storage.',
+        prep: () => switchTab('view-drop')
+      },
+      {
+        el: '#btn-create-album',
+        cat: 'BUNDLING',
+        title: 'ZIP Album Creator',
+        desc: 'Groups your current Vault files into a single shareable link with streaming .zip download support.',
+        prep: () => {}
+      },
+      {
+        el: '#cmd-palette-btn',
+        cat: 'SHORTCUTS',
+        title: 'Command Palette (⌘K / Ctrl+K)',
+        desc: 'Quickly search and trigger any action, setting, or tab switch from your keyboard.',
+        prep: () => {}
+      },
+      {
+        el: '#panic-escape-btn',
+        cat: 'QUICK EXIT',
+        title: 'Clear Data & Exit (ESC×2)',
+        desc: 'Click or double-tap Escape to clear local vault history and clipboard data, then redirect away from the page.',
+        prep: () => {}
+      },
+      {
+        el: '#page-footer',
+        cat: 'STATUS',
+        title: 'System Status & Usage',
+        desc: 'Displays live server latency, current Vault size, daily upload count, and storage saved via deduplication.',
+        prep: () => {}
+      }
+    ];
+
+    let currentTourIdx = 0;
+
+    const positionTourSpotlight = () => {
+      if (!tourLayer.classList.contains('active')) return;
+      const step = TOUR_STEPS[currentTourIdx];
+      if (!step) return;
+      if (step.prep) step.prep();
+
+      const target = document.querySelector(step.el);
+      if (!target) return;
+
+      const rect = target.getBoundingClientRect();
+      const pad = 6;
+      const top = Math.max(4, rect.top - pad);
+      const left = Math.max(4, rect.left - pad);
+      const width = Math.min(window.innerWidth - 8, rect.width + pad * 2);
+      const height = Math.min(window.innerHeight - 8, rect.height + pad * 2);
+
+      tourSpotlight.style.top = `${top}px`;
+      tourSpotlight.style.left = `${left}px`;
+      tourSpotlight.style.width = `${width}px`;
+      tourSpotlight.style.height = `${height}px`;
+
+      tourStepNum.textContent = `STEP ${String(currentTourIdx + 1).padStart(2, '0')} / ${String(TOUR_STEPS.length).padStart(2, '0')}`;
+      tourStepCat.textContent = step.cat;
+      tourTitle.textContent = step.title;
+      tourDesc.textContent = step.desc;
+
+      tourPrevBtn.disabled = currentTourIdx === 0;
+      tourNextBtn.textContent = currentTourIdx === TOUR_STEPS.length - 1 ? 'Finish' : 'Next →';
+
+      const cardWidth = 320;
+      const cardHeight = tourCard.offsetHeight || 170;
+      let cardTop = top + height + 12;
+      if (cardTop + cardHeight > window.innerHeight - 12) {
+        cardTop = Math.max(12, top - cardHeight - 12);
+      }
+      let cardLeft = left;
+      if (cardLeft + cardWidth > window.innerWidth - 12) {
+        cardLeft = Math.max(12, window.innerWidth - cardWidth - 12);
+      }
+
+      tourCard.style.top = `${cardTop}px`;
+      tourCard.style.left = `${cardLeft}px`;
+    };
+
+    const startFieldTour = () => {
+      codexModal.classList.remove('open');
+      currentTourIdx = 0;
+      tourLayer.classList.add('active');
+      positionTourSpotlight();
+    };
+
+    const endFieldTour = () => {
+      tourLayer.classList.remove('active');
+      if (!passwordInput.value.trim()) duressInput.classList.remove('visible');
+      switchTab('view-drop');
+    };
+
+    codexBtn.addEventListener('click', () => {
+      codexModal.classList.add('open');
+    });
+
+    codexCloseBtn.addEventListener('click', startFieldTour);
+    codexStartTourBtn.addEventListener('click', startFieldTour);
+    codexModal.addEventListener('click', (e) => {
+      if (e.target === codexModal) startFieldTour();
+    });
+
+    tourPrevBtn.addEventListener('click', () => {
+      if (currentTourIdx > 0) {
+        currentTourIdx--;
+        positionTourSpotlight();
+      }
+    });
+
+    tourNextBtn.addEventListener('click', () => {
+      if (currentTourIdx < TOUR_STEPS.length - 1) {
+        currentTourIdx++;
+        positionTourSpotlight();
+      } else {
+        endFieldTour();
+      }
+    });
+
+    tourSkipBtn.addEventListener('click', endFieldTour);
+    window.addEventListener('resize', positionTourSpotlight);
+
+    const COMMANDS = [
+      { label: 'Open System Specifications & Guide', hint: 'Specs', run: () => codexBtn.click() },
+      { label: 'Start Interactive Interface Walkthrough', hint: 'Guide', run: () => startFieldTour() },
+      { label: 'Toggle Theme (Dark / Light)', hint: 'Theme', run: () => themeToggleBtn.click() },
+      { label: 'Toggle Cascade E2EE (AES-GCM + ChaCha20)', hint: 'E2EE', run: () => toggleE2eeBtn.click() },
+      { label: 'Toggle Discrete Bucket Padding (PAD)', hint: 'Padding', run: () => togglePadBtn.click() },
+      { label: 'Set Shamir Split Key: 2-of-3 Shares', hint: 'Shamir', run: () => { shamirSelect.value = '2:3'; shamirSelect.dispatchEvent(new Event('change')); } },
+      { label: 'Set Shamir Split Key: 3-of-5 Shares', hint: 'Shamir', run: () => { shamirSelect.value = '3:5'; shamirSelect.dispatchEvent(new Event('change')); } },
+      { label: 'Set Time-Lock: Unlock after 1 Hour', hint: 'Time-Lock', run: () => { timelockSelect.value = '1h'; } },
+      { label: 'Toggle WebRTC P2P Direct Stream', hint: 'P2P >200M', run: () => toggleP2pBtn.click() },
+      { label: 'Toggle Secondary Wipe Code Input', hint: 'Duress', run: () => { duressInput.classList.toggle('visible'); if (duressInput.classList.contains('visible')) duressInput.focus(); } },
+      { label: 'Toggle Strip Image EXIF', hint: 'Privacy', run: () => toggleExifBtn.click() },
+      { label: 'Bundle Vault Files into Album (.zip)', hint: 'Album', run: () => createAlbumFromVault(document.getElementById('btn-create-album')) },
+      { label: 'Switch to Files Dropzone', hint: 'Tab', run: () => switchTab('view-drop') },
+      { label: 'Switch to Text & Secret Note Studio', hint: 'Tab', run: () => switchTab('view-paste') },
+      { label: 'Switch to CLI Reference', hint: 'Tab', run: () => switchTab('view-cli') },
+      { label: 'Clear Local Vault History', hint: 'Clear', run: () => document.getElementById('btn-purge-vault').click() },
+      { label: 'Quick Exit & Clear Local Data', hint: 'ESC×2', run: () => triggerPanicEscape() }
+    ];
+
+    let filteredCmds = [...COMMANDS];
+    let selectedCmdIdx = 0;
+
+    const renderCommandList = () => {
+      const frag = document.createDocumentFragment();
+      filteredCmds.forEach((cmd, idx) => {
+        const el = document.createElement('div');
+        el.className = 'cmd-item' + (idx === selectedCmdIdx ? ' selected' : '');
+        const s1 = document.createElement('span');
+        s1.textContent = cmd.label;
+        const s2 = document.createElement('span');
+        s2.className = 'cmd-hint';
+        s2.textContent = cmd.hint;
+        el.appendChild(s1);
+        el.appendChild(s2);
+        el.addEventListener('click', () => {
+          closeCommandPalette();
+          cmd.run();
+        });
+        frag.appendChild(el);
+      });
+      cmdList.replaceChildren(frag);
+    };
+
+    const openCommandPalette = () => {
+      cmdInput.value = '';
+      filteredCmds = [...COMMANDS];
+      selectedCmdIdx = 0;
+      renderCommandList();
+      cmdModal.classList.add('open');
+      cmdInput.focus();
+    };
+
+    const closeCommandPalette = () => {
+      cmdModal.classList.remove('open');
+    };
+
+    cmdPaletteBtn.addEventListener('click', openCommandPalette);
+    cmdModal.addEventListener('click', (e) => {
+      if (e.target === cmdModal) closeCommandPalette();
+    });
+
+    cmdInput.addEventListener('input', () => {
+      const q = cmdInput.value.trim().toLowerCase();
+      filteredCmds = COMMANDS.filter(c => c.label.toLowerCase().includes(q) || c.hint.toLowerCase().includes(q));
+      selectedCmdIdx = 0;
+      renderCommandList();
+    });
+
+    let lastEscTime = 0;
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        if (cmdModal.classList.contains('open')) closeCommandPalette();
+        else openCommandPalette();
+        return;
+      }
+      if (tourLayer.classList.contains('active')) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          endFieldTour();
+        } else if (e.key === 'ArrowRight' || e.key === 'Enter') {
+          e.preventDefault();
+          tourNextBtn.click();
+        } else if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          tourPrevBtn.click();
+        }
+        return;
+      }
+      if (codexModal.classList.contains('open')) {
+        if (e.key === 'Escape' || e.key === 'Enter') {
+          e.preventDefault();
+          startFieldTour();
+        }
+        return;
+      }
+      if (cmdModal.classList.contains('open')) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          closeCommandPalette();
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (filteredCmds.length) {
+            selectedCmdIdx = (selectedCmdIdx + 1) % filteredCmds.length;
+            renderCommandList();
+          }
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (filteredCmds.length) {
+            selectedCmdIdx = (selectedCmdIdx - 1 + filteredCmds.length) % filteredCmds.length;
+            renderCommandList();
+          }
+        } else if (e.key === 'Enter' && filteredCmds[selectedCmdIdx]) {
+          e.preventDefault();
+          const chosen = filteredCmds[selectedCmdIdx];
+          closeCommandPalette();
+          chosen.run();
+        }
+        return;
+      }
+      if (previewModal.classList.contains('open')) {
+        if (e.key === 'Escape') closePreviewModal();
+        return;
+      }
+      if (e.key === 'Escape') {
+        const now = Date.now();
+        if (now - lastEscTime < 400) {
+          triggerPanicEscape();
+        }
+        lastEscTime = now;
+      }
+    });
+
+    renderVault();
+    measureNodeLatency();
+  </script>
+</body>
+</html>

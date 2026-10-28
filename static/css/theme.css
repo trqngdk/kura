@@ -1,0 +1,139 @@
+/* ==========================================================================
+   DESIGN TOKENS & THEME PALETTES
+   ========================================================================== */
+
+:root[data-theme="dark"] {
+  --bg: #080808;
+  --surface: #0d0d0d;
+  --surface-elevated: #121212;
+  --surface-hover: #161616;
+  --border: #222222;
+  --border-strong: #383838;
+  --text-primary: #efefef;
+  --text-secondary: #8a8a8a;
+  --text-muted: #525252;
+  --accent: #ffffff;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --radial-dot: #1a1a1a;
+}
+
+:root[data-theme="light"] {
+  --bg: #f4f4f5;
+  --surface: #ffffff;
+  --surface-elevated: #fafafa;
+  --surface-hover: #f1f1f3;
+  --border: #e4e4e7;
+  --border-strong: #d1d5db;
+  --text-primary: #18181b;
+  --text-secondary: #71717a;
+  --text-muted: #a1a1aa;
+  --accent: #09090b;
+  --success: #059669;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --radial-dot: #e2e8f0;
+}
+
+/* ==========================================================================
+   VIEW TRANSITIONS & KEYFRAMES
+   ========================================================================== */
+
+::view-transition-old(root) {
+  animation: zoomOutFade 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+::view-transition-new(root) {
+  animation: zoomInFade 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes zoomOutFade {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.97);
+    filter: brightness(0.85);
+  }
+}
+
+@keyframes zoomInFade {
+  0% {
+    opacity: 0;
+    transform: scale(1.03);
+    filter: brightness(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+/* ==========================================================================
+   GLOBAL RESET & BASE TYPOGRAPHY
+   ========================================================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body,
+.console-frame,
+.vault-sidebar,
+.page-footer,
+.topbar,
+.vault-topbar,
+.control-bar,
+.tab-btn,
+.toggle-btn,
+.ctrl-select,
+.ctrl-input,
+.btn-action,
+.btn-ghost,
+.top-btn,
+.specs-grid,
+.spec-cell,
+.footer-telemetry,
+.dropzone,
+.paste-studio,
+.paste-textarea,
+.cli-box,
+.batch-hud,
+.album-banner,
+.modal-window,
+.modal-header,
+.cmd-item {
+  transition: background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              color 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body {
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--radial-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--text-primary);
+  font-family: "JetBrains Mono", "SF Mono", "Geist Mono", Consolas, monospace;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.75rem 1.25rem 1.25rem;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  gap: 1.25rem;
+}
+
+::selection {
+  background: var(--text-primary);
+  color: var(--bg);
+}

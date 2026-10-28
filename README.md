@@ -2,7 +2,7 @@
 
 # kura — 蔵
 
-**Zero-disk ephemeral object vault, cascade E2EE store, and P2P WebRTC relay.**
+**Zero-disk ephemeral object vault, hybrid post-quantum E2EE store, and authenticated WebRTC relay.**
 
 [![Rust](https://img.shields.io/badge/rust-1.80%2B-000000.svg?style=flat-square&logo=rust)](https://www.rust-lang.org)
 [![Axum](https://img.shields.io/badge/runtime-tokio%20%2F%20axum-0d0d0d.svg?style=flat-square)](https://github.com/tokio-rs/axum)
@@ -15,30 +15,31 @@
 
 ---
 
-**kura** is a single-binary file and text vault written in Rust. It is designed to operate on minimal compute resources by streaming payloads directly between network sockets and S3-compatible object storage (Cloudflare R2) without writing intermediate files to the local disk.
+**kura** is a single-binary file and text vault written in Rust. It is designed to operate on minimal compute resources by streaming payloads directly between network sockets and S3-compatible object storage (Cloudflare R2) without writing intermediate files to local disk.
 
-It pairs server-side envelope encryption and atomic SQLite metadata management with an embedded, dependency-free browser client that supports dual-cipher client-side encryption, Shamir's Secret Sharing ($M$-of-$N$), discrete traffic padding, and direct peer-to-peer WebRTC transfers.
+It pairs server-side hybrid post-quantum envelope encryption and atomic SQLite metadata management with an embedded, dependency-free browser client that supports client-side lattice key encapsulation, dual-cipher stream cascading, Shamir's Secret Sharing ($M$-of-$N$), discrete traffic padding, and authenticated peer-to-peer WebRTC transfers.
 
 ---
 
 ## Architecture
 
 ```text
-                                   ┌──────────────────────────────────────┐
-                                   │             kura daemon              │
-                                   │                                      │
-Client ──► PUT / POST / WebRTC ───►│  BlindedRateLimiter (64-bit Atomic)  │
-                                   │                  │                   │
-                                   │         ┌────────┴────────┐          │
-                                   │         ▼                 ▼          │
-                                   │  4 KiB Magic Sniff   Signaling Room  │
-                                   │  ChaCha20 Stream     (In-Memory)     │
-                                   │         │                 │          │
-                                   └─────────┼─────────────────┼──────────┘
-                                             │                 │
-                         ┌───────────────────┴───┐             ▼
-                         ▼                       ▼      Direct WebRTC P2P
-               ┌───────────────────┐   ┌───────────────────┐
+                                   ┌──────────────────────────────────────────────┐
+                                   │                 kura daemon                  │
+                                   │                                              │
+Client ──► PUT / POST / WebRTC ───►│    BlindedRateLimiter (64-bit Atomic)        │
+                                   │                       │                      │
+                                   │         ┌─────────────┴─────────────┐        │
+                                   │         ▼                           ▼        │
+                                   │  4 KiB Magic Sniff          Signed WebRTC    │
+                                   │  Hybrid ML-KEM-768          Signaling Room   │
+                                   │  + X25519 KEM Engine        (Pin-Locked RX)  │
+                                   │         │                           │        │
+                                   └─────────┼───────────────────────────┼────────┘
+                                             │                           │
+                         ┌───────────────────┴───┐                       ▼
+                         ▼                       ▼               Direct WebRTC P2P
+               ┌───────────────────┐   ┌───────────────────┐     (HMAC-SHA256 Auth)
                │   Cloudflare R2   │   │  SQLite (WAL)     │
                │   Object Storage  │◄──│  + Litestream     │
                └───────────────────┘   └───────────────────┘
@@ -57,38 +58,50 @@ kura avoids local filesystem staging during both uploads and downloads:
 
 ## Cryptography & Access Control
 
-### 1. Client-Side Cascade Encryption (E2EE v2)
+### 1. Hybrid Classical + Post-Quantum Key Agreement (FIPS 203 + X25519)
+To mitigate "Harvest Now, Decrypt Later" threats, all encryption layers bind classical curve arithmetic with lattice-based post-quantum cryptography:
+* **RFC 7748 X25519:** Evaluated via a constant-time Montgomery ladder over the prime field $\mathbb{F}_{2^{255}-19}$.
+* **FIPS 203 ML-KEM Ring-LWE:** Operates on the quotient polynomial ring $R_q = \mathbb{Z}_{3329}[X]/(X^{256}+1)$ with Centered Binomial Distribution ($\text{CBD}_{\eta=2}$) noise sampling and negacyclic polynomial multiplication.
+* **Dual-PRF Combiner:** Shared secrets are extracted via domain-separated HKDF-SHA256:
+  $$SS_{\text{hybrid}} = \text{HKDF-SHA256}(\text{salt} = \text{nonce}, IKM = SS_{\text{classical}} \parallel SS_{\text{pqc}}, \text{info} = \text{"kura\_hybrid\_pqc\_v3"})$$
+
+### 2. Client-Side Cascade Encryption (E2EE v3)
 When end-to-end encryption is enabled in the browser, plaintext never leaves the client:
-* **Key Derivation:** A 256-bit master key is generated via `crypto.getRandomValues`. Using `HKDF-SHA256` salted with a 96-bit IV and bound to the file's metadata JSON, two orthogonal 256-bit subkeys are derived.
-* **Dual-Cipher Cascade:** Plaintext is first XORed through a 32-bit word-aligned `ChaCha20` stream cipher, then encrypted and authenticated with `AES-256-GCM` using the metadata header as Additional Authenticated Data (AAD).
-* **URL Fragment Transport:** The master key is encoded in the URL `#fragment`, which browsers do not transmit in HTTP requests.
+* **In-Place Stream Processing:** Plaintext buffers are XORed in-place via a 32-bit word-aligned `ChaCha20` implementation, eliminating 50% of peak memory overhead.
+* **Hardware AES-GCM:** The mutated buffer is authenticated and encrypted via `AES-256-GCM` using metadata JSON as Additional Authenticated Data (AAD).
+* **Zero-Allocation SHA-256:** The final packed frame is hashed directly from memory, eliminating redundant `ArrayBuffer` allocations.
 
-### 2. Shamir's Secret Sharing ($M$-of-$N$ Split Custody)
-Instead of embedding the master key in the URL, the 256-bit key can be split into $N$ mathematical shares over the finite field $\text{GF}(2^8)$ (irreducible polynomial `0x11B`, generator `0x03`). Reconstructing the key at the download gate requires Lagrange interpolation over any $M$ valid shares (`2-of-3`, `3-of-5`, or `4-of-7`).
+### 3. Server-Side Envelope Encryption (Hybrid PQC v3)
+All protected or ephemeral files (password-locked, time-locked, burn-after-read, or view-limited) are encrypted in transit to R2 using a 160-byte v3 envelope:
+* **Layout:** `[0..32: Ephemeral X25519 PK]` $\parallel$ `[32..64: Lattice Seed]` $\parallel$ `[64..96: PQC Commitment]` $\parallel$ `[96..128: Wrapped DEK]` $\parallel$ `[128..160: AAD MAC Tag]`.
+* **Backward Compatibility:** `unwrap_server_dek` automatically detects and unwraps legacy 64-byte v2 envelopes without requiring database migrations.
+* **Crypto-Shredding:** Dropping the database row and in-memory boot secret instantly renders stored R2 ciphertexts mathematically unrecoverable.
 
-### 3. Server-Side Envelope Encryption & Crypto-Shredding
-All protected or ephemeral files (password-locked, time-locked, burn-after-read, or view-limited) are encrypted in transit to R2:
-* Each file receives a unique 256-bit Data Encryption Key (DEK) and 96-bit nonce.
-* The server derives two distinct subkeys (`enc_kek` and `mac_kek`) from an ephemeral in-memory boot secret and the file's slug via `HKDF-SHA256`.
-* The DEK is encrypted with `ChaCha20` and authenticated with an `HMAC-SHA256` tag binding the domain, slug, nonce, and ciphertext.
+### 4. Shamir's Secret Sharing ($M$-of-$N$ Split Custody)
+The master key can be split into $N$ mathematical shares over the finite field $\text{GF}(2^8)$ (irreducible polynomial `0x11B`, generator `0x03`). Reconstructing the key at the download gate requires Lagrange interpolation over any $M$ valid shares (`2-of-3`, `3-of-5`, or `4-of-7`).
 
-### 4. Hybrid Memory-Hard Password KDF & Duress Destruction
-* **Password Verification:** Passwords are processed through 100,000 rounds of `PBKDF2-HMAC-SHA256` to seed an `8,192`-block (`256 KiB`) memory matrix. The matrix undergoes 2 data-independent rounds (cache-timing resistant) followed by 4 data-dependent rounds (ASIC/GPU resistant) and full-lane XOR folding before final HKDF extraction.
-* **Constant-Time Dual Evaluation:** Authentication always executes two full KDF evaluations per attempt to prevent timing side-channels from revealing whether a file has a primary password, a duress password, or both.
-* **Duress Wipe:** Entering the configured secondary duress password immediately deletes the database record and purges the underlying R2 object, returning `410 Gone`.
-* **Volatile Memory Scrubbing:** Ephemeral keys, KDF matrices, and credential structs are overwritten using `write_volatile` and `compiler_fence(Ordering::SeqCst)` prior to deallocation.
+### 5. Hybrid Memory-Hard Password KDF & Duress Destruction
+* **Password Verification:** Passwords pass through 100,000 rounds of `PBKDF2-HMAC-SHA256` to seed an `8,192`-block (`256 KiB`) memory matrix. The matrix undergoes 2 data-independent rounds followed by 4 data-dependent rounds and full-lane XOR folding.
+* **Constant-Time Dual Evaluation:** Both primary and duress KDFs execute simultaneously to eliminate timing side-channels.
+* **Duress Wipe:** Entering the secondary duress password immediately purges the database row and underlying R2 object, returning `410 Gone`.
+* **Volatile Memory Scrubbing:** Ephemeral keys, polynomial states, and credential buffers are overwritten using `write_volatile` and `compiler_fence(Ordering::SeqCst)` prior to deallocation.
 
 ---
 
-## Traffic Privacy & Content Sanitization
+## Traffic Privacy & WebRTC Wormhole
 
-* **Discrete Bucket Padding:** To mitigate size-correlation traffic analysis, client-side E2EE can pad payloads with CSPRNG bytes to fixed bucket boundaries (`64 KiB`, `512 KiB`, `2 MiB`, `8 MiB`, `32 MiB`, `200 MiB`). The exact byte length is stored inside the AAD-authenticated metadata header and truncated upon decryption.
-* **Polyglot & Active-Content Disarming:** The server inspects the first `4 KiB` of every unencrypted upload:
-  * Blocks disguised native executables (`PE/MZ`, `ELF`, `Mach-O`, `WASM`, `.lnk`).
-  * Normalizes null-interleaved (`UTF-16`) and whitespace-padded streams to detect embedded HTML/JS/SVG polyglot tags, forcing `application/octet-stream` and `Content-Disposition: attachment`.
-  * Scans PDF headers for active directives (`/JavaScript`, `/JS`, `/Launch`, `/OpenAction`, `/RichMedia`) and disables inline browser rendering if detected.
-* **Client-Side EXIF Stripping:** JPEG, PNG, and WebP images are re-encoded through an offscreen HTML5 Canvas prior to upload, stripping GPS coordinates and camera metadata.
-* **Crawler Shield:** Link preview bots (`TelegramBot`, `Discordbot`, `Slackbot`, `Twitterbot`, `WhatsApp`, etc.) and `Purpose: prefetch` requests receive an inert HTML gate rather than triggering `1-view` burn-after-read counters.
+### 1. Authenticated & Pin-Locked WebRTC Signaling
+To prevent Man-in-the-Middle (MITM) hijacking and rogue ICE packet injection:
+* **Sender Proof:** All sender SDP offers and ICE candidates must supply an `X-Kura-Signal-Sig` header computing $\text{HMAC-SHA256}(\text{sender\_token}, \text{"kura\_wormhole\_sig\_v3:"} \parallel \text{room\_id} \parallel \text{role} \parallel \text{kind} \parallel \text{body})$.
+* **Receiver Identity Locking:** Upon submitting the initial SDP answer with `X-Kura-Receiver-Token`, the server binds a cryptographic claim tag to the room. Subsequent Trickle-ICE packets from unauthenticated third parties are rejected with `403 Forbidden`.
+
+### 2. Discrete Bucket Padding
+To neutralize size-correlation traffic analysis, client-side E2EE pads payloads with CSPRNG bytes to fixed boundaries (`64 KiB`, `512 KiB`, `2 MiB`, `8 MiB`, `32 MiB`, `200 MiB`). The true length is sealed within the authenticated metadata header.
+
+### 3. Content Disarming & Sanitization
+* **Active Content Stripping:** The first `4 KiB` is inspected to reject disguised executables (`PE`, `ELF`, `Mach-O`, `WASM`, `.lnk`) and disarm active PDF scripts (`/JavaScript`, `/Launch`).
+* **Compacted Polyglot Detection:** Strips interleaved null bytes (`UTF-16LE/BE`) and whitespace-padded tags to eliminate polyglot XSS vectors.
+* **Client-Side EXIF Stripping:** JPEG, PNG, and WebP images are re-rendered through an offscreen HTML5 Canvas prior to transmission.
 
 ---
 
@@ -135,7 +148,7 @@ Streaming album `.zip` archives are generated on the fly (PKWARE STORE method wi
 | `PUT` | `/upload/resumable/{sid}/{part}` | Stream a `10 MiB` resumable chunk to R2 |
 | `POST` | `/upload/resumable/{sid}/complete` | Verify SHA-256, assemble chunks, and finalize |
 | `POST` | `/wormhole/init` | Create an ephemeral WebRTC signaling room |
-| `POST` | `/wormhole/{id}/signal` | Submit SDP offer/answer or Trickle-ICE candidate |
+| `POST` | `/wormhole/{id}/signal` | Submit authenticated SDP offer/answer or Trickle-ICE |
 | `GET` | `/wormhole/{id}/state` | Long-poll room state (`?since={rev}&wait_ms={ms}`) |
 | `POST` | `/album` | Bundle newline-separated public slugs into a ZIP album |
 | `GET` | `/a/{album_id}/zip` | Stream on-the-fly `.zip` archive of album contents |
@@ -152,8 +165,10 @@ Streaming album `.zip` archives are generated on the fly (PKWARE STORE method wi
 | `X-Kura-Timelock` | `15m`, `1h`, `6h`, `24h`, `7d`, or Unix TS | Locks file access until the specified future timestamp |
 | `X-Kura-Password` | UTF-8 string ($\le 128$ bytes) | Protects file download behind the authentication gate |
 | `X-Kura-Duress-Password` | UTF-8 string ($\le 128$ bytes) | Secondary password that permanently wipes the file when entered |
-| `X-Kura-E2EE` | `1` or `0` | Flags payload as client-side encrypted |
+| `X-Kura-E2EE` | `1`, `cascade-v2`, `hybrid-pqc-v3` | Flags payload encryption model |
 | `X-Kura-Shamir-M` | Integer `2..=16` | Records required threshold $M$ for Shamir split-key payloads |
+| `X-Kura-Signal-Sig` | 64-char hex string | HMAC-SHA256 signature for WebRTC SDP and ICE signaling |
+| `X-Kura-Receiver-Token` | 32-char hex string | Ephemeral receiver authentication token for session pin-locking |
 | `X-Kura-Pow` | `{challenge}:{nonce}` | Hashcash Proof-of-Work solution token |
 
 ### CLI Usage
@@ -214,14 +229,14 @@ The compiled binary requires only the `static/index.html` asset in its working d
 src/
 ├── main.rs       # Server bootstrap, SQLite WAL tuning, Litestream supervisor, background reaper
 ├── config.rs     # System constants, RAII guards, volatile credential zeroization, error responses
-├── crypto.rs     # Vectorized ChaCha20, zero-alloc HMAC/HKDF, hybrid KDF, polyglot/PDF disarmer
-├── limiter.rs    # Bit-packed sliding-window Count-Min Sketch, 4-way PoW cache, 2-choice ZIP locks
+├── crypto.rs     # FIPS 203 Ring-LWE, X25519, ChaCha20, zero-alloc HMAC/HKDF, hybrid KDF
+├── limiter.rs    # Bit-packed sliding Count-Min Sketch, 4-way PoW cache, 2-choice ZIP locks
 ├── upload.rs     # Unified single-pass R2 streaming, resumable assembly, presigned token handlers
 ├── download.rs   # Atomic view/burn accounting, zero-copy range streaming, HTML gate & viewers
-├── wormhole.rs   # Race-free long-polling WebRTC signaling & Trickle-ICE P2P receiver
+├── wormhole.rs   # Signed WebRTC signaling, receiver pin-locking & Trickle-ICE long-polling
 └── album.rs      # Single-transaction album binding & streaming PKWARE ZIP generator
 static/
-└── index.html    # Dependency-free SPA: 32-bit ChaCha20, GF(256) Shamir SSS, QR generator, P2P client
+└── index.html    # Single-page client: Ring-LWE PQC, in-place ChaCha20, GF(256) Shamir, signed P2P
 ```
 
 ---

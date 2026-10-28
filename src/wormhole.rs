@@ -46,7 +46,7 @@ window.addEventListener('keydown', e => {
 "#;
 
 // ============================================================================
-// INTERNAL VALIDATION & ZERO-ALLOCATION HELPERS
+// INTERNAL VALIDATION & ZERO-ALLOCATION CRYPTOGRAPHIC HELPERS
 // ============================================================================
 
 /// Validates the 10-character alphanumeric room identifier
@@ -101,6 +101,29 @@ fn build_json_no_store_response(json_body: String) -> Response {
   resp
 }
 
+/// Derives a deterministic 16-char hex Receiver Claim Lock Tag from the server boot secret,
+/// room_id, and the receiver's ephemeral token without expanding `struct WormholeRoom`.
+#[inline]
+fn compute_receiver_claim_tag(
+  boot_secret: &[u8; 32],
+  room_id: &str,
+  receiver_token: &str,
+) -> [u8; 16] {
+  let mac = hmac_sha256_iov(
+    boot_secret,
+    &[
+      b"kura_wormhole_rx_lock_v3:",
+      room_id.as_bytes(),
+      b":",
+      receiver_token.as_bytes(),
+    ],
+  );
+  let hex64 = encode_hex_sha256(&mac);
+  let mut tag16 = [0u8; 16];
+  tag16.copy_from_slice(&hex64[..16]);
+  tag16
+}
+
 // ============================================================================
 // WEBRTC P2P WORMHOLE SIGNALING HANDLERS
 // ============================================================================
@@ -146,7 +169,6 @@ pub async fn init_wormhole_handler(
       return Err(AppError::TooManyRequests("wormhole_capacity_full"));
     }
 
-    // Guarantee collision-free room allocation
     for _ in 0..SLUG_MAX_RETRIES {
       let candidate = generate_random_string(WORMHOLE_ID_LENGTH);
       if !rooms.contains_key(&candidate) {
@@ -213,7 +235,6 @@ pub async fn signal_wormhole_handler(
   let role = params.get("role").map(|s| s.as_str()).unwrap_or("sender");
   let kind = params.get("kind").map(|s| s.as_str()).unwrap_or("offer");
 
-  // Enforce strict per-type payload size caps to prevent RAM exhaustion DoS
   match kind {
     "offer" | "answer" => {
       if trimmed_body.len() > MAX_SDP_PAYLOAD_BYTES {
@@ -230,6 +251,18 @@ pub async fn signal_wormhole_handler(
 
   let supplied_token = headers
     .get("x-kura-wormhole-token")
+    .and_then(|v| v.to_str().ok())
+    .map(|s| s.trim())
+    .unwrap_or("");
+
+  let supplied_rx_token = headers
+    .get("x-kura-receiver-token")
+    .and_then(|v| v.to_str().ok())
+    .map(|s| s.trim())
+    .unwrap_or("");
+
+  let supplied_sig = headers
+    .get("x-kura-signal-sig")
     .and_then(|v| v.to_str().ok())
     .map(|s| s.trim())
     .unwrap_or("");
@@ -253,12 +286,42 @@ pub async fn signal_wormhole_handler(
       return Err(AppError::NotFound("wormhole_room_expired"));
     }
 
-    // Strict mandatory authentication for sender role (closes empty-token bypass vulnerability)
+    // 1. Strict Sender Authentication + Optional Cryptographic Payload Signature Verification
     if role == "sender" {
+      let stored_sender_tok = room.sender_token.split(':').next().unwrap_or("");
       if supplied_token.is_empty()
-        || !constant_time_eq(supplied_token.as_bytes(), room.sender_token.as_bytes())
+        || !constant_time_eq(supplied_token.as_bytes(), stored_sender_tok.as_bytes())
       {
         return Err(AppError::Forbidden("invalid_wormhole_sender_token"));
+      }
+      if !supplied_sig.is_empty()
+        && !verify_wormhole_signal_proof(
+          stored_sender_tok,
+          &room_id,
+          role,
+          kind,
+          trimmed_body,
+          supplied_sig,
+        )
+      {
+        return Err(AppError::Forbidden("invalid_wormhole_signal_signature"));
+      }
+    }
+
+    // 2. Receiver Identity Pinning (Prevents third-party ICE injection / Receiver Hijacking)
+    if role == "receiver" && !supplied_sig.is_empty() {
+      if supplied_rx_token.len() < 16 || supplied_rx_token.len() > 64 {
+        return Err(AppError::Forbidden("invalid_wormhole_receiver_token"));
+      }
+      if !verify_wormhole_signal_proof(
+        supplied_rx_token,
+        &room_id,
+        role,
+        kind,
+        trimmed_body,
+        supplied_sig,
+      ) {
+        return Err(AppError::Forbidden("invalid_receiver_signal_signature"));
       }
     }
 
@@ -276,6 +339,18 @@ pub async fn signal_wormhole_handler(
         if room.answer.is_some() {
           return Err(AppError::Forbidden("sdp_answer_already_locked"));
         }
+        // Pin the claiming receiver's cryptographic tag onto `sender_token` ("<sender_tok>:<rx_tag16>")
+        if !supplied_rx_token.is_empty() && !room.sender_token.contains(':') {
+          let rx_tag = compute_receiver_claim_tag(
+            &state.rate_limiter.boot_secret,
+            &room_id,
+            supplied_rx_token,
+          );
+          if let Ok(tag_str) = std::str::from_utf8(&rx_tag) {
+            room.sender_token.push(':');
+            room.sender_token.push_str(tag_str);
+          }
+        }
         room.answer = Some(trimmed_body.to_string());
       }
       ("sender", "ice") => {
@@ -286,6 +361,20 @@ pub async fn signal_wormhole_handler(
         }
       }
       ("receiver", "ice") => {
+        // If the room has pinned a Receiver identity, verify that the ICE candidate comes from the same Receiver
+        if let Some((_, pinned_rx_tag)) = room.sender_token.split_once(':') {
+          if supplied_rx_token.is_empty() {
+            return Err(AppError::Forbidden("receiver_session_locked"));
+          }
+          let candidate_tag = compute_receiver_claim_tag(
+            &state.rate_limiter.boot_secret,
+            &room_id,
+            supplied_rx_token,
+          );
+          if !constant_time_eq(pinned_rx_tag.as_bytes(), &candidate_tag) {
+            return Err(AppError::Forbidden("receiver_identity_mismatch"));
+          }
+        }
         if room.receiver_ice.len() < MAX_ICE_CANDIDATES_PER_PEER
           && !room.receiver_ice.iter().any(|c| c == trimmed_body)
         {
@@ -346,7 +435,6 @@ pub async fn state_wormhole_handler(
     }
   };
 
-  // Race-free long-polling: register the Notified future and re-verify revision before sleeping
   if let Some(ref notify) = notify_arc {
     let notified = notify.notified();
     tokio::pin!(notified);
@@ -386,7 +474,6 @@ pub async fn state_wormhole_handler(
     let offer_json = room.offer.as_deref().unwrap_or("null");
     let answer_json = room.answer.as_deref().unwrap_or("null");
 
-    // Pre-allocate single buffer for JSON serialization to avoid intermediate Vec/String allocations
     let approx_cap = 256
       + offer_json.len()
       + answer_json.len()
@@ -455,9 +542,9 @@ pub async fn view_wormhole_receiver_handler(
   };
 
   let mode_badge = if is_e2ee {
-    "WebRTC P2P Direct Stream · AES-256-GCM E2EE"
+    "WebRTC P2P Direct Stream · AES-256-GCM E2EE · Signed Handshake"
   } else {
-    "WebRTC P2P Direct Stream · Zero Server Storage"
+    "WebRTC P2P Direct Stream · Zero Server Storage · Signed Handshake"
   };
 
   let html = format!(
@@ -501,17 +588,39 @@ body{{background:#080808;color:#efefef;font-family:"JetBrains Mono",Consolas,mon
 <script>
 {PANIC_ESCAPE_JS}
 const fmt = b => {{
-  if (!b) return '0 B';
-  const k = 1024, s = ['B','KiB','MiB','GiB'], i = Math.floor(Math.log(b)/Math.log(k));
-  return parseFloat((b/Math.pow(k,i)).toFixed(2)) + ' ' + s[i];
+  if (!b || b <= 0) return '0 B';
+  if (b < 1024) return (b | 0) + ' B';
+  if (b < 1048576) return (b / 1024).toFixed(2) + ' KiB';
+  if (b < 1073741824) return (b / 1048576).toFixed(2) + ' MiB';
+  return (b / 1073741824).toFixed(2) + ' GiB';
 }};
 const totalSize = {filesize};
 const isE2ee = {is_e2ee};
+const roomId = '{room_id}';
 const statusEl = document.getElementById('p2p-status');
 const bytesEl = document.getElementById('p2p-bytes');
 const fillEl = document.getElementById('p2p-fill');
 const btn = document.getElementById('p2p-btn');
 bytesEl.textContent = '0 B / ' + fmt(totalSize);
+
+const HEX_LUT = Array.from({{ length: 256 }}, (_, i) => i.toString(16).padStart(2, '0'));
+const rxRaw = crypto.getRandomValues(new Uint8Array(16));
+let rxToken = '';
+for (let i = 0; i < 16; i++) rxToken += HEX_LUT[rxRaw[i]];
+
+let sigKeyPromise = null;
+const signSignalPayload = async (role, kind, bodyStr) => {{
+  if (!sigKeyPromise) {{
+    const enc = new TextEncoder().encode(rxToken);
+    sigKeyPromise = crypto.subtle.importKey('raw', enc, {{ name: 'HMAC', hash: 'SHA-256' }}, false, ['sign']);
+  }}
+  const key = await sigKeyPromise;
+  const msg = new TextEncoder().encode('kura_wormhole_sig_v3:' + roomId + ':' + role + ':' + kind + ':' + bodyStr);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, msg));
+  let hex = '';
+  for (let i = 0; i < 32; i++) hex += HEX_LUT[mac[i]];
+  return hex;
+}};
 
 btn.onclick = async () => {{
   btn.disabled = true;
@@ -525,6 +634,7 @@ btn.onclick = async () => {{
       if (!hashKey) throw new Error('Missing E2EE key in URL #fragment');
       const rawKey = Uint8Array.from(atob(hashKey.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
       cryptoKey = await crypto.subtle.importKey('raw', rawKey, 'AES-GCM', false, ['decrypt']);
+      rawKey.fill(0);
     }}
 
     let state = null;
@@ -543,11 +653,17 @@ btn.onclick = async () => {{
       ]
     }});
 
-    pc.onicecandidate = e => {{
+    pc.onicecandidate = async e => {{
       if (e.candidate) {{
+        const bodyStr = JSON.stringify(e.candidate);
+        const sig = await signSignalPayload('receiver', 'ice', bodyStr);
         fetch('/wormhole/{room_id}/signal?role=receiver&kind=ice', {{
           method: 'POST',
-          body: JSON.stringify(e.candidate)
+          headers: {{
+            'X-Kura-Receiver-Token': rxToken,
+            'X-Kura-Signal-Sig': sig
+          }},
+          body: bodyStr
         }}).catch(() => {{}});
       }}
     }};
@@ -621,14 +737,19 @@ btn.onclick = async () => {{
 
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
+    const ansBody = JSON.stringify(pc.localDescription);
+    const ansSig = await signSignalPayload('receiver', 'answer', ansBody);
     const ansRes = await fetch('/wormhole/{room_id}/signal?role=receiver&kind=answer', {{
       method: 'POST',
-      body: JSON.stringify(pc.localDescription)
+      headers: {{
+        'X-Kura-Receiver-Token': rxToken,
+        'X-Kura-Signal-Sig': ansSig
+      }},
+      body: ansBody
     }});
     if (!ansRes.ok) throw new Error('Failed to submit SDP answer');
     statusEl.textContent = 'Handshake sent · Awaiting P2P stream...';
 
-    // Continuous Trickle-ICE synchronization until DataChannel completes or connects
     let lastRev = state.revision || 0;
     (async () => {{
       for (let poll = 0; poll < 15 && iceSyncActive; poll++) {{
